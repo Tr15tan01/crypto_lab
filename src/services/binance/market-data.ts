@@ -314,6 +314,18 @@ export class BinanceMarketData {
     );
   }
 
+  /**
+   * The most recent `limit` daily candles (including the forming one), uncached. The discovery
+   * scan uses this for hundreds of pairs and caches its whole result instead, so per-pair
+   * entries don't push everything else out of the memory cache.
+   */
+  async recentDailyCandles(symbol: string, limit: number): Promise<Kline[]> {
+    const sym = normalizeSymbol(symbol);
+    return this.track(async () =>
+      parseKlines(await this.http.getJson("/api/v3/klines", { symbol: sym, interval: "1d", limit: Math.min(limit, 1000) })),
+    );
+  }
+
   /** Walks backwards from now so the most recent candles are always included. */
   private async fetchBackwards(symbol: string, interval: KlineInterval, startTime: number): Promise<Kline[]> {
     const pages: Kline[][] = [];

@@ -3,6 +3,8 @@
 A private, single-user research lab for Binance Spot cryptocurrencies:
 
 - **Market Scanner** — every tradable Binance Spot pair, searchable, filterable and sortable.
+- **Discovery** (`/discover`) — screens over the ~300 most liquid USDT pairs: new listings (by first Binance trading data), unusual volume vs the 30-day median, strength vs BTC over 7/30 days, golden crosses, oversold bounces and 90-day highs, with risk cautions and an AI shortlist review that argues for and against each candidate (never a buy recommendation). The scan is cached for 15 minutes.
+- **Guide** (`/guide`) — in-app instructions: a research workflow, how each screen works and its pitfalls, and what every page does.
 - **Coin pages** (`/crypto/BTCUSDT`) — live price, candlestick/line charts (1m → 1w, 24h → all history), EMA/Bollinger overlays, deterministic indicators, listing status, alerts, notes.
 - **Watchlist** — reasons, notes, target prices, personal ranking, performance since added; removed entries are kept.
 - **Paper portfolio** — theoretical USDT (default $1,000), simulated buys/sells with fees, average-cost accounting, holdings, snapshots and seven portfolio charts.
@@ -69,7 +71,7 @@ Atlas is required (or any replica set): trades are written in **MongoDB multi-do
 
 ### Collections
 
-`users`, `user_settings`, `watchlist`, `portfolios`, `holdings`, `transactions`, `portfolio_snapshots`, `market_snapshots`, `conversations`, `messages`, `ai_research`, `decision_journal`, `alerts`, `notifications`, `rate_limits` (TTL), `market_cache`, `job_state`. Schemas are in `src/models/index.ts`; indexes in `src/lib/mongodb/collections.ts`.
+`users`, `user_settings`, `watchlist`, `portfolios`, `holdings`, `transactions`, `portfolio_snapshots`, `market_snapshots`, `conversations`, `messages`, `ai_research`, `discovery_shortlists`, `decision_journal`, `alerts`, `notifications`, `rate_limits` (TTL), `market_cache`, `job_state`. Schemas are in `src/models/index.ts`; indexes in `src/lib/mongodb/collections.ts`.
 
 ## Authentication
 

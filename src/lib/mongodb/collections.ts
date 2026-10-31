@@ -7,6 +7,7 @@ import type {
   AlertDoc,
   ConversationDoc,
   DecisionJournalDoc,
+  DiscoveryShortlistDoc,
   HoldingDoc,
   JobStateDoc,
   MarketCacheDoc,
@@ -34,6 +35,7 @@ export const COLLECTIONS = {
   conversations: "conversations",
   messages: "messages",
   aiResearch: "ai_research",
+  discoveryShortlists: "discovery_shortlists",
   decisionJournal: "decision_journal",
   alerts: "alerts",
   notifications: "notifications",
@@ -54,6 +56,7 @@ export interface Collections {
   conversations: Collection<ConversationDoc>;
   messages: Collection<MessageDoc>;
   aiResearch: Collection<AIResearchDoc>;
+  discoveryShortlists: Collection<DiscoveryShortlistDoc>;
   decisionJournal: Collection<DecisionJournalDoc>;
   alerts: Collection<AlertDoc>;
   notifications: Collection<NotificationDoc>;
@@ -97,6 +100,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
 
     c(COLLECTIONS.aiResearch).createIndex({ userId: 1, symbol: 1, timestamp: -1 }),
     c(COLLECTIONS.aiResearch).createIndex({ userId: 1, timestamp: -1 }),
+    c(COLLECTIONS.discoveryShortlists).createIndex({ userId: 1, timestamp: -1 }),
 
     c(COLLECTIONS.decisionJournal).createIndex({ userId: 1, timestamp: -1 }),
     c(COLLECTIONS.decisionJournal).createIndex({ userId: 1, symbol: 1, timestamp: -1 }),
@@ -130,6 +134,7 @@ export async function getCollections(): Promise<Collections> {
     conversations: db.collection<ConversationDoc>(COLLECTIONS.conversations),
     messages: db.collection<MessageDoc>(COLLECTIONS.messages),
     aiResearch: db.collection<AIResearchDoc>(COLLECTIONS.aiResearch),
+    discoveryShortlists: db.collection<DiscoveryShortlistDoc>(COLLECTIONS.discoveryShortlists),
     decisionJournal: db.collection<DecisionJournalDoc>(COLLECTIONS.decisionJournal),
     alerts: db.collection<AlertDoc>(COLLECTIONS.alerts),
     notifications: db.collection<NotificationDoc>(COLLECTIONS.notifications),

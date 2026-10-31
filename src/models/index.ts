@@ -239,7 +239,23 @@ export interface AIResearchDoc {
   timestamp: Date;
 }
 
-export type DecisionType = "BUY" | "SELL" | "HOLD" | "WATCH" | "SKIP";
+/** An AI review of discovery-screen candidates. Stores the exact data the AI was given. */
+export interface DiscoveryShortlistDoc {
+  _id: ObjectId;
+  userId: string;
+  provider: string;
+  model: string;
+  /** Which discovery screen the candidates came from (e.g. "top", "volume"). */
+  screen: string;
+  symbols: string[];
+  candidates: Record<string, unknown>[];
+  content: string;
+  scanTimestamp: Date;
+  scanStale: boolean;
+  timestamp: Date;
+}
+
+export type DecisionType ="BUY" | "SELL" | "HOLD" | "WATCH" | "SKIP";
 export type TimeHorizon = "intraday" | "days" | "weeks" | "months" | "years";
 export type RiskLevel = "low" | "medium" | "high" | "very_high";
 

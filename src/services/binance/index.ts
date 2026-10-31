@@ -10,7 +10,7 @@ export type { MarketTicker, SymbolInfo, MarketStatus } from "./market-data";
 export { normalizeSymbol } from "./market-data";
 
 /** Last successful market data persisted in MongoDB (best effort). */
-const mongoStore: PersistentStore = {
+export const mongoStore: PersistentStore = {
   async read(key) {
     const { marketCache } = await getCollections();
     const doc = await marketCache.findOne({ _id: key });
