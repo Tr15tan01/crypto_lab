@@ -1,0 +1,154 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens — a dark, terminal-like research desk.
+ * Charcoal surfaces separated by hairline borders, one restrained amber accent,
+ * and green/red reserved strictly for price direction.
+ */
+@theme {
+  --color-bg: #0a0b0d;
+  --color-surface: #101216;
+  --color-surface-2: #15181d;
+  --color-surface-3: #1b1f25;
+  --color-border: #1f232a;
+  --color-border-strong: #2b3039;
+  --color-fg: #e7e9ec;
+  --color-muted: #8b929c;
+  --color-faint: #5d646e;
+  --color-accent: #e0b354;
+  --color-accent-fg: #17130a;
+  /* Price direction (polarity). Validated on the dark surface; always paired with a sign/arrow
+     or hollow-vs-filled candles because red/green alone is weak for colour-blind readers. */
+  --color-up: #26a878;
+  --color-down: #ef5a5a;
+
+  /* Categorical chart slots, fixed order (validated: dark surface #101216, adjacent pairs). */
+  --color-series-1: #3987e5;
+  --color-series-2: #d95926;
+  --color-series-3: #199e70;
+  --color-series-4: #c98500;
+  --color-series-5: #d55181;
+  --color-series-6: #008300;
+  --color-series-7: #9085e9;
+  --color-series-8: #e66767;
+  --color-warn: #e8a33d;
+  --color-info: #6ea8fe;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
+
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 7px;
+
+  --animate-fade-in: fade-in 160ms ease-out;
+  --animate-pulse-soft: pulse-soft 2.4s ease-in-out infinite;
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(2px); }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes pulse-soft {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html,
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-accent) 35%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--color-accent) 70%, transparent);
+    outline-offset: 2px;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+  }
+}
+
+@utility num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+@utility label-caps {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  font-weight: 500;
+}
+
+/* Markdown rendered from the AI assistant. */
+@layer components {
+  .prose-terminal {
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--color-fg);
+  }
+  .prose-terminal > * + * { margin-top: 0.75em; }
+  .prose-terminal h1,
+  .prose-terminal h2,
+  .prose-terminal h3 {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin-top: 1.4em;
+  }
+  .prose-terminal h1 { font-size: 1.15rem; }
+  .prose-terminal h2 { font-size: 1.02rem; border-bottom: 1px solid var(--color-border); padding-bottom: 0.3em; }
+  .prose-terminal h3 { font-size: 0.95rem; color: var(--color-accent); }
+  .prose-terminal ul { list-style: disc; padding-left: 1.25em; }
+  .prose-terminal ol { list-style: decimal; padding-left: 1.25em; }
+  .prose-terminal li + li { margin-top: 0.25em; }
+  .prose-terminal strong { font-weight: 600; color: #f3f4f6; }
+  .prose-terminal code {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background: var(--color-surface-3);
+    border-radius: 3px;
+    padding: 0.1em 0.35em;
+  }
+  .prose-terminal blockquote {
+    border-left: 2px solid var(--color-accent);
+    padding-left: 0.9em;
+    color: var(--color-muted);
+  }
+  .prose-terminal table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    display: block;
+    overflow-x: auto;
+  }
+  .prose-terminal th,
+  .prose-terminal td {
+    border-bottom: 1px solid var(--color-border);
+    padding: 0.4em 0.7em;
+    text-align: left;
+    white-space: nowrap;
+  }
+  .prose-terminal th { color: var(--color-muted); font-weight: 500; font-size: 12px; }
+  .prose-terminal a { color: var(--color-info); text-decoration: underline; text-underline-offset: 2px; }
+  .prose-terminal hr { border-color: var(--color-border); }
+}

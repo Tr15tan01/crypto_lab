@@ -1,0 +1,311 @@
+import "server-only";
+import { getCollections } from "@/lib/mongodb/collections";
+import { marketData, type MarketTicker } from "@/services/binance";
+import { buildOverview } from "@/services/market/overview";
+import { summarizeIndicators } from "@/services/indicators/summary";
+import { getPortfolioState } from "@/services/portfolio/portfolio-service";
+import { scenarioImpact } from "@/services/portfolio/valuation";
+import type { Kline } from "@/services/binance/schemas";
+import { detectIntent } from "./detect";
+
+export interface ContextSummary {
+  symbols: string[];
+  included: string[];
+  dataTimestamp: string | null;
+}
+
+export interface BuiltContext {
+  text: string;
+  summary: ContextSummary;
+}
+
+const DAY = 86_400_000;
+
+function round(v: number | null | undefined, dp = 6): number | null {
+  if (v === null || v === undefined || !Number.isFinite(v)) return null;
+  return Number(v.toPrecision(dp));
+}
+
+function iso(ms: number | Date | null | undefined) {
+  if (ms === null || ms === undefined) return null;
+  return new Date(ms).toISOString();
+}
+
+function priceAgo(klines: Kline[], days: number) {
+  const target = Date.now() - days * DAY;
+  // Last daily candle that closed on or before the target time.
+  for (let i = klines.length - 1; i >= 0; i--) {
+    if (klines[i]!.closeTime <= target) return { date: iso(klines[i]!.closeTime), close: round(klines[i]!.close) };
+  }
+  return null;
+}
+
+function tickerFacts(t: MarketTicker) {
+  return {
+    pair: t.symbol,
+    lastPrice: t.price,
+    change24hPercent: round(t.priceChangePercent, 4),
+    high24h: t.high,
+    low24h: t.low,
+    baseVolume24h: round(t.volume),
+    quoteVolume24h: round(t.quoteVolume),
+    trades24h: t.tradeCount,
+  };
+}
+
+/**
+ * Builds the APPLICATION CONTEXT block sent with a question. Only data relevant to the
+ * question is included; the summary (not the data) is stored with the message for auditing.
+ */
+export async function buildChatContext(
+  userId: string,
+  question: string,
+  opts: { focusSymbol?: string | null; recentText?: string } = {},
+): Promise<BuiltContext> {
+  const md = marketData();
+  const included: string[] = [];
+  const ctx: Record<string, unknown> = { generatedAt: new Date().toISOString() };
+  let dataTimestamp: number | null = null;
+
+  let tickers: MarketTicker[] = [];
+  let tickersStale = false;
+  try {
+    const res = await md.allTickers();
+    tickers = res.data;
+    tickersStale = res.stale;
+    dataTimestamp = res.fetchedAt;
+    ctx.marketData = {
+      source: "Binance Spot public market data",
+      fetchedAt: iso(res.fetchedAt),
+      status: res.stale ? "STALE — Binance unreachable, last known values" : "live",
+    };
+  } catch {
+    ctx.marketData = { status: "UNAVAILABLE — Binance could not be reached and no cached data exists" };
+  }
+
+  const usdt = tickers.filter((t) => t.quoteAsset === "USDT");
+  const known = new Set(usdt.map((t) => t.baseAsset));
+  const focusBase = opts.focusSymbol ? usdt.find((t) => t.symbol === opts.focusSymbol)?.baseAsset ?? null : null;
+  // Follow-up questions ("and what about its volume?") inherit symbols from the recent turns.
+  let intent = detectIntent(question, known, focusBase);
+  if (intent.baseAssets.length === 0 && opts.recentText) {
+    const prior = detectIntent(opts.recentText, known, focusBase);
+    intent = { ...intent, baseAssets: prior.baseAssets.slice(0, 2), marketWide: intent.marketWide && prior.baseAssets.length === 0 };
+  }
+
+  if (intent.marketWide && usdt.length) {
+    const o = buildOverview(tickers, "USDT");
+    ctx.marketOverview = {
+      note: `Breadth among USDT pairs with ≥ $1M 24h volume (${o.liquidPairCount} pairs)`,
+      advancers: o.advancers,
+      decliners: o.decliners,
+      medianChange24hPercent: round(o.medianChangePercent, 4),
+      majors: o.majors.map(tickerFacts),
+      topGainers: o.leaders.gainers.map((t) => ({ pair: t.symbol, change24hPercent: round(t.priceChangePercent, 4) })),
+      topLosers: o.leaders.losers.map((t) => ({ pair: t.symbol, change24hPercent: round(t.priceChangePercent, 4) })),
+    };
+    included.push("market overview");
+  }
+
+  const symbols = intent.baseAssets
+    .map((b) => usdt.find((t) => t.baseAsset === b))
+    .filter((t): t is MarketTicker => Boolean(t));
+  const { holdings, transactions, decisionJournal, watchlist, aiResearch, marketSnapshots, portfolios } = await getCollections();
+  const activePortfolio = symbols.length ? await portfolios.findOne({ userId, status: "active" }) : null;
+
+  const assets: Record<string, unknown>[] = [];
+  for (const t of symbols) {
+    const entry: Record<string, unknown> = { asset: t.baseAsset, ...tickerFacts(t) };
+    if (tickersStale) entry.dataWarning = "STALE price data";
+
+    const [daily, first, symbolInfo] = await Promise.allSettled([
+      md.klines(t.symbol, "1d", "1y"),
+      md.firstCandle(t.symbol),
+      md.symbolInfo(t.symbol),
+    ]);
+    if (symbolInfo.status === "fulfilled") {
+      entry.binanceStatus = symbolInfo.value.data?.status ?? "not listed";
+    }
+    if (first.status === "fulfilled" && first.value.data) {
+      entry.firstAvailableBinanceTradingData = iso(first.value.data.openTime);
+      entry.firstAvailableBinanceTradingDataNote =
+        "Date of the earliest daily candle Binance serves for this pair. Not the project launch or listing announcement date.";
+    }
+    if (daily.status === "fulfilled" && daily.value.data.length > 15) {
+      const k = daily.value.data;
+      const s = summarizeIndicators(k, "1d", t.price);
+      entry.dailyIndicators = {
+        computedFrom: `${s.candles} closed daily candles up to ${iso(s.asOf)}`,
+        rsi14: round(s.rsi14, 4),
+        macd: s.macd ? { macd: round(s.macd.macd), signal: round(s.macd.signal), histogram: round(s.macd.histogram) } : null,
+        ema20: round(s.ema20),
+        ema50: round(s.ema50),
+        ema200: round(s.ema200),
+        bollinger: s.bollinger
+          ? { upper: round(s.bollinger.upper), middle: round(s.bollinger.middle), lower: round(s.bollinger.lower), percentB: round(s.bollinger.percentB, 4) }
+          : null,
+        atr14: round(s.atr14),
+        atrPercent: round(s.atrPercent, 4),
+        volumeVs20dAverage: round(s.volume.ratio, 4),
+        realisedVolatility30dAnnualisedPercent: round(s.volatility.annualizedPercent, 4),
+        returnsPercent: Object.fromEntries(Object.entries(s.returns).map(([k2, v]) => [k2, round(v, 4)])),
+        range90d: s.range ? { high: round(s.range.high), low: round(s.range.low), positionPercent: round(s.range.positionPercent, 4) } : null,
+        swingSupport: s.levels.support.map((v) => round(v)),
+        swingResistance: s.levels.resistance.map((v) => round(v)),
+        ruleBasedReadings: s.signals.map((x) => `${x.name}: ${x.value} — ${x.note}`),
+        warnings: s.warnings,
+      };
+      entry.historicalCloses = {
+        "1dAgo": priceAgo(k, 1),
+        "7dAgo": priceAgo(k, 7),
+        "30dAgo": priceAgo(k, 30),
+        "90dAgo": priceAgo(k, 90),
+        "180dAgo": priceAgo(k, 180),
+        "365dAgo": priceAgo(k, 364),
+      };
+      included.push(`${t.baseAsset} indicators`);
+    }
+
+    // The user's own data for this asset (always relevant to a question about it).
+    const holding = activePortfolio ? await holdings.findOne({ portfolioId: activePortfolio._id, symbol: t.symbol }) : null;
+    if (holding && holding.quantity > 0) {
+      entry.mySimulatedPosition = {
+        quantity: holding.quantity,
+        averageCost: round(holding.averageCost),
+        costBasis: round(holding.investedValue),
+        marketValue: round(holding.quantity * t.price),
+        unrealizedPnL: round(holding.quantity * t.price - holding.investedValue),
+        openedAt: iso(holding.openedAt),
+      };
+    }
+    const txs = await transactions.find({ userId, symbol: t.symbol }).sort({ timestamp: -1 }).limit(10).toArray();
+    if (txs.length) {
+      entry.mySimulatedTransactions = txs.map((x) => ({
+        type: x.type,
+        at: iso(x.timestamp),
+        quantity: x.quantity,
+        price: x.price,
+        total: round(x.total),
+        realizedPnL: x.realizedPnL !== undefined ? round(x.realizedPnL) : undefined,
+        realWorldStatus: x.executionStatus,
+      }));
+      included.push(`${t.baseAsset} transactions`);
+    }
+    const journals = await decisionJournal.find({ userId, symbol: t.symbol }).sort({ timestamp: -1 }).limit(5).toArray();
+    if (journals.length) {
+      entry.myJournalEntries = journals.map((j) => ({
+        at: iso(j.timestamp),
+        decision: j.decisionType,
+        priceAtDecision: j.priceAtDecision,
+        thesis: j.thesis?.slice(0, 600),
+        reason: j.reason?.slice(0, 300),
+        targetPrice: j.targetPrice,
+        horizon: j.expectedTimeHorizon,
+        risk: j.riskLevel,
+        confidence: j.confidence,
+        latestReview: j.outcome ?? null,
+      }));
+      included.push(`${t.baseAsset} journal`);
+    }
+    const watch = await watchlist.findOne({ userId, symbol: t.symbol, active: true });
+    if (watch) {
+      entry.myWatchlistEntry = {
+        addedAt: iso(watch.addedAt),
+        priceAtAdd: watch.priceAtAdd,
+        reason: watch.reason?.slice(0, 400),
+        targetPrice: watch.targetPrice,
+      };
+    }
+    const research = await aiResearch.find({ userId, symbol: t.symbol }).sort({ timestamp: -1 }).limit(2).toArray();
+    if (research.length) {
+      entry.previousAIResearch = research.map((r) => ({
+        at: iso(r.timestamp),
+        priceAtAnalysis: r.priceAtAnalysis,
+        bias: r.bias,
+        evaluations: r.evaluations.map((e) => `${e.horizon}: ${e.outcome} (${round(e.returnPercent, 3)}%)`),
+        excerpt: r.analysis.split("## 13.")[1]?.slice(0, 700) ?? r.analysis.slice(0, 500),
+      }));
+      included.push(`${t.baseAsset} past research`);
+    }
+    const snaps = await marketSnapshots.find({ symbol: t.symbol }).sort({ timestamp: -1 }).limit(5).toArray();
+    if (snaps.length) {
+      entry.storedMarketSnapshots = snaps.map((s) => ({ at: iso(s.dataTimestamp), price: s.price, reason: s.reason }));
+    }
+    assets.push(entry);
+  }
+  if (assets.length) {
+    ctx.assets = assets;
+    included.push(`market data: ${symbols.map((s) => s.baseAsset).join(", ")}`);
+  }
+
+  if (intent.portfolio) {
+    const state = await getPortfolioState(userId);
+    const v = state.valuation;
+    ctx.mySimulatedPortfolio = {
+      note: "Paper portfolio with theoretical funds",
+      startingBalance: state.portfolio.initialBalance,
+      quoteAsset: state.portfolio.quoteAsset,
+      cash: round(v.cash),
+      totalValue: round(v.totalValue),
+      totalReturnPercent: round(v.totalReturnPercent, 4),
+      realizedPnL: round(v.realizedPnL),
+      unrealizedPnL: round(v.unrealizedPnL),
+      pricesAsOf: state.pricesFetchedAt,
+      unpricedPositions: v.unpricedSymbols,
+      positions: v.positions.map((p) => ({
+        pair: p.symbol,
+        quantity: p.quantity,
+        averageCost: round(p.averageCost),
+        price: p.price,
+        marketValue: round(p.marketValue),
+        unrealizedPnL: round(p.unrealizedPnL),
+        unrealizedPercent: round(p.unrealizedPercent, 4),
+        allocationPercent: round(p.allocationPercent, 4),
+        priceIsLive: p.priceLive,
+      })),
+    };
+    if (intent.scenarios.length) {
+      ctx.whatIfScenarios = intent.scenarios.map((s) => scenarioImpact(v, s.asset, s.changePercent));
+      included.push("what-if scenarios");
+    }
+    included.push("portfolio");
+
+    if (intent.history && symbols.length === 0) {
+      const recent = await transactions.find({ userId, portfolioId: state.portfolio._id }).sort({ timestamp: -1 }).limit(15).toArray();
+      ctx.myRecentSimulatedTransactions = recent.map((x) => ({
+        pair: x.symbol,
+        type: x.type,
+        at: iso(x.timestamp),
+        price: x.price,
+        total: round(x.total),
+        realizedPnL: x.realizedPnL !== undefined ? round(x.realizedPnL) : undefined,
+      }));
+      included.push("recent transactions");
+    }
+  }
+
+  if (intent.journal && symbols.length === 0) {
+    const journals = await decisionJournal.find({ userId }).sort({ timestamp: -1 }).limit(8).toArray();
+    ctx.myRecentJournalEntries = journals.map((j) => ({
+      pair: j.symbol,
+      at: iso(j.timestamp),
+      decision: j.decisionType,
+      priceAtDecision: j.priceAtDecision,
+      thesis: j.thesis?.slice(0, 400),
+      targetPrice: j.targetPrice,
+      confidence: j.confidence,
+      latestReview: j.outcome ?? null,
+    }));
+    included.push("journal");
+  }
+
+  const text = `APPLICATION CONTEXT (JSON, generated by the app; treat as the only source of facts):\n${JSON.stringify(ctx)}`;
+  return {
+    text,
+    summary: {
+      symbols: symbols.map((s) => s.symbol),
+      included,
+      dataTimestamp: dataTimestamp ? new Date(dataTimestamp).toISOString() : null,
+    },
+  };
+}
