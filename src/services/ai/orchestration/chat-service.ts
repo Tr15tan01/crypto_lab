@@ -3,12 +3,14 @@ import { ObjectId } from "mongodb";
 import { getCollections } from "@/lib/mongodb/collections";
 import { AppError, NotFoundError, isAppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
-import type { ConversationDoc, MessageDoc } from "@/models";
+import type { ConversationDoc, MessageDoc, PredictionDoc } from "@/models";
+import { serialize, type Serialized } from "@/types/serialized";
+import { listConversationPredictions, recordPredictions } from "@/services/predictions/prediction-service";
 import { getAIProvider } from "../providers/factory";
 import { AIProviderError, type ChatTurn } from "../providers/types";
 import { buildChatContext } from "../context/context-builder";
 import { CHAT_SYSTEM_PROMPT } from "./prompts";
-import { extractFollowUps } from "./follow-ups";
+import { extractFollowUps, extractOutlooks } from "./follow-ups";
 
 const HISTORY_TURNS = 16;
 
@@ -45,8 +47,11 @@ async function ownConversation(userId: string, id: string) {
 export async function getConversation(userId: string, id: string) {
   const conversation = await ownConversation(userId, id);
   const { messages } = await getCollections();
-  const list = await messages.find({ conversationId: conversation._id }).sort({ timestamp: 1 }).toArray();
-  return { conversation, messages: list };
+  const [list, predictions] = await Promise.all([
+    messages.find({ conversationId: conversation._id }).sort({ timestamp: 1 }).toArray(),
+    listConversationPredictions(userId, conversation._id),
+  ]);
+  return { conversation, messages: list, predictions };
 }
 
 export async function renameConversation(userId: string, id: string, title: string) {
@@ -84,7 +89,11 @@ export function normalizeTurns(turns: ChatTurn[]): ChatTurn[] {
 export type StreamEvent =
   | { type: "meta"; provider: string; model: string; userMessageId: string; context: MessageDoc["relevantContext"] }
   | { type: "delta"; text: string }
-  | { type: "done"; message: { _id: string; content: string; followUps: string[]; provider: string; model: string; timestamp: string } }
+  | {
+      type: "done";
+      message: { _id: string; content: string; followUps: string[]; provider: string; model: string; timestamp: string };
+      predictions: Serialized<PredictionDoc>[];
+    }
   | { type: "error"; code: string; message: string; retryable: boolean };
 
 /**
@@ -177,7 +186,8 @@ export async function streamReply(
           throw new AIProviderError("unknown", provider.name, "The AI provider returned an empty response. Retry the request.");
         }
 
-        const { content, followUps } = extractFollowUps(full);
+        const { content: body, outlooks } = extractOutlooks(full);
+        const { content, followUps } = extractFollowUps(body);
         const assistant: MessageDoc = {
           _id: new ObjectId(),
           userId,
@@ -196,6 +206,25 @@ export async function streamReply(
           { _id: conversation._id },
           { $set: { updatedAt: new Date() }, $inc: { messageCount: 1 } },
         );
+        // Calls are tracked best-effort: a failure here must not lose the answer.
+        let predictions: PredictionDoc[] = [];
+        if (outlooks.length && context.summary.dataTimestamp) {
+          predictions = await recordPredictions(
+            userId,
+            {
+              conversationId: conversation._id,
+              messageId: assistant._id,
+              provider: provider.name,
+              model: provider.model,
+              dataTimestamp: new Date(context.summary.dataTimestamp),
+            },
+            outlooks,
+            context.priced,
+          ).catch((err) => {
+            logger.error("ai.chat.predictions_failed", { error: err });
+            return [];
+          });
+        }
         send(controller, {
           type: "done",
           message: {
@@ -206,6 +235,7 @@ export async function streamReply(
             model: provider.model,
             timestamp: assistant.timestamp.toISOString(),
           },
+          predictions: serialize(predictions),
         });
       } catch (err) {
         if (signal.aborted) {

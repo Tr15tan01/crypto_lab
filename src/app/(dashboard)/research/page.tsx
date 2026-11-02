@@ -15,7 +15,7 @@ export default async function ResearchPage() {
     <>
       <PageHeader
         title="AI Research"
-        description="A research assistant grounded in Binance data and your own records. It separates facts from assumptions and never presents predictions as facts."
+        description="A forecasting assistant grounded in Binance data and your own records. It gives probability-weighted calls with levels, and every call is scored against real prices afterwards. Not financial advice."
         actions={
           ai.configured ? (
             <Badge tone="neutral">

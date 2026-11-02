@@ -6,6 +6,7 @@ import { logger } from "@/lib/logger";
 import { evaluateAlerts } from "@/services/alerts/alerts-service";
 import { maybeCreateScheduledSnapshot } from "@/services/portfolio/snapshots";
 import { evaluateDueResearch } from "@/services/research/research-service";
+import { evaluateDuePredictions } from "@/services/predictions/prediction-service";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -52,5 +53,6 @@ export async function GET(req: NextRequest) {
   await run("snapshot", () => maybeCreateScheduledSnapshot(userId));
   await run("alerts", () => evaluateAlerts(userId, { force: true }));
   await run("research_evaluation", () => evaluateDueResearch(userId, 20));
+  await run("prediction_evaluation", () => evaluateDuePredictions(userId, 20));
   return NextResponse.json({ data: result });
 }

@@ -239,6 +239,37 @@ export interface AIResearchDoc {
   timestamp: Date;
 }
 
+export type PredictionHorizon = Exclude<ResearchEvaluation["horizon"], "1h">;
+
+/**
+ * A directional call the chat assistant made about one pair. Stored separately from the message
+ * so the AI's track record survives conversation deletion and cannot be cherry-picked.
+ */
+export interface PredictionDoc {
+  _id: ObjectId;
+  userId: string;
+  conversationId: ObjectId;
+  messageId: ObjectId;
+  symbol: string;
+  provider: string;
+  model: string;
+  bias: ResearchBias;
+  /** The AI's stated probability (50–95) that the call is right at the horizon. */
+  confidence: number;
+  horizon: PredictionHorizon;
+  priceAtPrediction: number;
+  dataTimestamp: Date;
+  entry: { low: number; high: number } | null;
+  target: number | null;
+  stop: number | null;
+  /** The application's rule-based scorecard value at the time (-100 … +100). */
+  compositeScore: number | null;
+  timestamp: Date;
+  /** When the horizon ends and the call can be scored. */
+  dueAt: Date;
+  evaluation: (ResearchEvaluation & { levelHit: "target" | "stop" | "none" | null }) | null;
+}
+
 /** An AI review of discovery-screen candidates. Stores the exact data the AI was given. */
 export interface DiscoveryShortlistDoc {
   _id: ObjectId;

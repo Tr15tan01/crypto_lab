@@ -1,0 +1,103 @@
+import "server-only";
+import { ObjectId } from "mongodb";
+import { getCollections } from "@/lib/mongodb/collections";
+import { logger } from "@/lib/logger";
+import { marketData } from "@/services/binance";
+import { HORIZONS, evaluateOutcome } from "@/services/research/evaluation";
+import type { ChatOutlook } from "@/services/ai/orchestration/follow-ups";
+import type { PredictionDoc } from "@/models";
+import { levelOutcome, sanitizeLevels, summarizeTrackRecord } from "./scoring";
+
+export interface PricedSymbol {
+  price: number;
+  compositeScore: number | null;
+}
+
+/**
+ * Stores the calls from one assistant reply. Only pairs whose live price was in the context are
+ * recorded (a call on stale or missing data could not be scored fairly).
+ */
+export async function recordPredictions(
+  userId: string,
+  meta: { conversationId: ObjectId; messageId: ObjectId; provider: string; model: string; dataTimestamp: Date },
+  outlooks: ChatOutlook[],
+  priced: Record<string, PricedSymbol>,
+): Promise<PredictionDoc[]> {
+  const now = new Date();
+  const docs: PredictionDoc[] = [];
+  for (const raw of outlooks) {
+    const symbol = priced[raw.symbol] ? raw.symbol : priced[`${raw.symbol}USDT`] ? `${raw.symbol}USDT` : null;
+    if (!symbol) continue;
+    const { price, compositeScore } = priced[symbol]!;
+    const o = sanitizeLevels(raw, price);
+    docs.push({
+      _id: new ObjectId(),
+      userId,
+      conversationId: meta.conversationId,
+      messageId: meta.messageId,
+      symbol,
+      provider: meta.provider,
+      model: meta.model,
+      bias: o.bias,
+      confidence: o.confidence,
+      horizon: o.horizon,
+      priceAtPrediction: price,
+      dataTimestamp: meta.dataTimestamp,
+      entry: o.entry ? { low: o.entry[0], high: o.entry[1] } : null,
+      target: o.target,
+      stop: o.stop,
+      compositeScore,
+      timestamp: now,
+      dueAt: new Date(now.getTime() + HORIZONS[o.horizon].ms),
+      evaluation: null,
+    });
+  }
+  if (docs.length) {
+    const { predictions } = await getCollections();
+    await predictions.insertMany(docs);
+    logger.info("predictions.recorded", { count: docs.length, symbols: docs.map((d) => d.symbol) });
+  }
+  return docs;
+}
+
+export async function listConversationPredictions(userId: string, conversationId: ObjectId) {
+  const { predictions } = await getCollections();
+  return predictions.find({ userId, conversationId }).sort({ timestamp: 1 }).toArray();
+}
+
+/** Scores calls whose horizon has ended. Idempotent and bounded to protect Binance rate limits. */
+export async function evaluateDuePredictions(userId: string, max = 10): Promise<number> {
+  const { predictions } = await getCollections();
+  const due = await predictions
+    .find({ userId, evaluation: null, dueAt: { $lte: new Date() } })
+    .sort({ dueAt: 1 })
+    .limit(max)
+    .toArray();
+  let scored = 0;
+  for (const p of due) {
+    try {
+      const start = p.timestamp.getTime();
+      const { interval, ms } = HORIZONS[p.horizon];
+      const kl = await marketData().klinesBetween(p.symbol, interval, start, start + ms);
+      if (kl.stale) continue;
+      const ev = evaluateOutcome(p.bias, p.priceAtPrediction, start, p.horizon, kl.data);
+      if (!ev) continue;
+      const levelHit = levelOutcome(p.bias, p.target, p.stop, kl.data.filter((k) => k.openTime >= start - 1));
+      const res = await predictions.updateOne({ _id: p._id, evaluation: null }, { $set: { evaluation: { ...ev, levelHit } } });
+      scored += res.modifiedCount;
+    } catch (err) {
+      logger.warn("predictions.evaluation_failed", { symbol: p.symbol, horizon: p.horizon, error: err });
+    }
+  }
+  return scored;
+}
+
+export async function getTrackRecord(userId: string, opts: { symbol?: string; limit?: number } = {}) {
+  const { predictions } = await getCollections();
+  const list = await predictions
+    .find({ userId, ...(opts.symbol ? { symbol: opts.symbol } : {}) })
+    .sort({ timestamp: -1 })
+    .limit(Math.min(opts.limit ?? 200, 500))
+    .toArray();
+  return { summary: summarizeTrackRecord(list), recent: list.slice(0, 10) };
+}

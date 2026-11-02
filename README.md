@@ -71,7 +71,7 @@ Atlas is required (or any replica set): trades are written in **MongoDB multi-do
 
 ### Collections
 
-`users`, `user_settings`, `watchlist`, `portfolios`, `holdings`, `transactions`, `portfolio_snapshots`, `market_snapshots`, `conversations`, `messages`, `ai_research`, `discovery_shortlists`, `decision_journal`, `alerts`, `notifications`, `rate_limits` (TTL), `market_cache`, `job_state`. Schemas are in `src/models/index.ts`; indexes in `src/lib/mongodb/collections.ts`.
+`users`, `user_settings`, `watchlist`, `portfolios`, `holdings`, `transactions`, `portfolio_snapshots`, `market_snapshots`, `conversations`, `messages`, `ai_research`, `discovery_shortlists`, `ai_predictions`, `decision_journal`, `alerts`, `notifications`, `rate_limits` (TTL), `market_cache`, `job_state`. Schemas are in `src/models/index.ts`; indexes in `src/lib/mongodb/collections.ts`.
 
 ## Authentication
 

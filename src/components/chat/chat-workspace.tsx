@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, FileText, MessageSquarePlus, Pencil, RotateCcw, Send, Square, Trash2, X } from "lucide-react";
+import { Check, FileText, Gauge, MessageSquarePlus, Pencil, RotateCcw, Send, Square, Trash2, X } from "lucide-react";
 import { apiFetch, ApiClientError } from "@/lib/client/api";
 import { Badge, Button, EmptyState, Input, Notice, Spinner } from "@/components/ui/primitives";
 import { Tooltip } from "@/components/ui/radix";
 import { Markdown } from "./markdown";
+import { VerdictCard, type Prediction } from "./verdict-card";
+import { TrackRecord } from "./track-record";
 import { cn, formatDateTime, formatRelative } from "@/lib/utils/format";
 
 interface Conversation {
@@ -38,21 +40,36 @@ interface Message {
 type StreamEvent =
   | { type: "meta"; provider: string; model: string; userMessageId: string; context: ContextSummary }
   | { type: "delta"; text: string }
-  | { type: "done"; message: { _id: string; content: string; followUps: string[]; provider: string; model: string; timestamp: string } }
+  | {
+      type: "done";
+      message: { _id: string; content: string; followUps: string[]; provider: string; model: string; timestamp: string };
+      predictions: Prediction[];
+    }
   | { type: "error"; code: string; message: string; retryable: boolean };
 
 const STARTERS = [
-  "What is happening with Ethereum right now?",
-  "Is BTC showing positive momentum?",
-  "Analyze my current holdings.",
+  "Will Bitcoin go up this week?",
+  "Is SOL a good buy right now?",
+  "Give me a 30-day verdict on Ethereum.",
+  "Compare SOL and ETH — which has the better setup?",
+  "Analyze my current holdings — what should I trim or add?",
   "What would happen to my portfolio if Bitcoin dropped 20%?",
-  "Compare SOL and ETH.",
-  "What market conditions should I monitor before buying?",
 ];
 
+const HORIZONS = [
+  { value: "24h", label: "24h", phrase: "the next 24 hours" },
+  { value: "7d", label: "7 days", phrase: "the next 7 days" },
+  { value: "30d", label: "30 days", phrase: "the next 30 days" },
+] as const;
+
+function verdictPrompt(coin: string, phrase: string) {
+  return `Give me your verdict on ${coin} for ${phrase}: is it likely to go up or down, how confident are you, and what are the entry, target and stop levels?`;
+}
+
+/** Hides the machine-readable trailer lines while a reply is still streaming. */
 function visibleStreamingText(text: string) {
-  const i = text.indexOf("FOLLOW_UPS:");
-  return i === -1 ? text : text.slice(0, i);
+  const cut = ["OUTLOOK_JSON:", "FOLLOW_UPS:"].map((m) => text.indexOf(m)).filter((i) => i >= 0);
+  return cut.length ? text.slice(0, Math.min(...cut)) : text;
 }
 
 function ContextChip({ ctx, provider, model }: { ctx?: ContextSummary; provider?: string; model?: string }) {
@@ -78,11 +95,14 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   // Thread state is tagged with its conversation id, so switching conversations never shows stale content.
-  const [thread, setThread] = useState<{ id: string | null; messages: Message[]; focus: string | null }>({
+  const [thread, setThread] = useState<{ id: string | null; messages: Message[]; focus: string | null; predictions: Prediction[] }>({
     id: null,
     messages: [],
     focus: null,
+    predictions: [],
   });
+  const [trackKey, setTrackKey] = useState(0);
+  const [verdictCoin, setVerdictCoin] = useState("");
   // Set when the first message creates a conversation, until the URL catches up.
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [input, setInput] = useState("");
@@ -102,6 +122,11 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
   const current = thread.id === viewId ? thread : null;
   const messages = useMemo(() => current?.messages ?? [], [current]);
   const focus = current?.focus ?? null;
+  const predictionsByMessage = useMemo(() => {
+    const map = new Map<string, Prediction[]>();
+    for (const p of current?.predictions ?? []) map.set(p.messageId, [...(map.get(p.messageId) ?? []), p]);
+    return map;
+  }, [current]);
   const loadingConv = viewId !== null && current === null;
   const live = streaming && streaming.id === viewId ? streaming : null;
   const shownError = error && error.id === viewId ? error : null;
@@ -124,11 +149,13 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
     if (streamingFor.current && streamingFor.current !== activeId) abortRef.current?.abort();
     if (!activeId) return;
     let cancelled = false;
-    apiFetch<{ conversation: Conversation; messages: Message[] }>(`/api/ai/conversations/${activeId}`)
+    apiFetch<{ conversation: Conversation; messages: Message[]; predictions: Prediction[] }>(`/api/ai/conversations/${activeId}`)
       .then((d) => {
         if (cancelled) return;
         setThread((prev) =>
-          prev.id === activeId ? prev : { id: activeId, messages: d.messages, focus: d.conversation.focusSymbol ?? null },
+          prev.id === activeId
+            ? prev
+            : { id: activeId, messages: d.messages, focus: d.conversation.focusSymbol ?? null, predictions: d.predictions },
         );
         const last = d.messages[d.messages.length - 1];
         if (last?.role === "user" && streamingFor.current !== activeId) {
@@ -137,7 +164,7 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
       })
       .catch((err) => {
         if (cancelled) return;
-        setThread({ id: activeId, messages: [], focus: null });
+        setThread({ id: activeId, messages: [], focus: null, predictions: [] });
         setError({ id: activeId, message: err instanceof ApiClientError ? err.message : "Could not load conversation.", retryable: false });
       });
     return () => {
@@ -161,7 +188,7 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
       try {
         const c = await apiFetch<Conversation>("/api/ai/conversations", { method: "POST", json: {} });
         conversationId = c._id;
-        setThread({ id: c._id, messages: [], focus: null });
+        setThread({ id: c._id, messages: [], focus: null, predictions: [] });
         setPendingId(c._id);
         setConversations((prev) => [c, ...(prev ?? [])]);
         router.replace(`/research?c=${c._id}`);
@@ -219,6 +246,10 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
           } else if (ev.type === "done") {
             finished = true;
             update((m) => [...m, { ...ev.message, role: "assistant" }]);
+            if (ev.predictions.length) {
+              setThread((t) => (t.id === id ? { ...t, predictions: [...t.predictions, ...ev.predictions] } : t));
+              setTrackKey((k) => k + 1);
+            }
             setStreaming(null);
           } else if (ev.type === "error") {
             finished = true;
@@ -257,7 +288,7 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
   };
 
   const remove = async (id: string) => {
-    if (!window.confirm("Delete this conversation and its messages? This cannot be undone.")) return;
+    if (!window.confirm("Delete this conversation and its messages? This cannot be undone. AI calls made in it stay in the track record.")) return;
     try {
       await apiFetch(`/api/ai/conversations/${id}`, { method: "DELETE" });
       if (id === viewId) select(null);
@@ -282,6 +313,7 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
         <Link href="/research/reports" className="flex items-center gap-2 border-b border-border px-3 py-2 text-xs text-muted hover:text-fg">
           <FileText className="size-3.5" /> Analysis reports
         </Link>
+        <TrackRecord refreshKey={trackKey} />
         <div className="flex-1 overflow-y-auto p-1.5">
           {listError ? <Notice tone="down" className="m-1">{listError}</Notice> : null}
           {conversations === null && listError ? null : conversations === null ? (
@@ -365,7 +397,7 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
           ) : messages.length === 0 && !busy ? (
             <EmptyState
               title="Research assistant"
-              description="Answers use live Binance data and your own records. It analyses; it does not predict or recommend trades."
+              description="Ask about any coin and get a verdict: direction, probability, entry, target and stop, built from live Binance data, a quant scorecard and historical base rates. Every call is scored later so you can see how often it is right."
               action={
                 <div className="mt-2 flex max-w-xl flex-wrap justify-center gap-2">
                   {STARTERS.map((s) => (
@@ -391,6 +423,7 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
                   </div>
                 ) : (
                   <div key={m._id} className="animate-fade-in">
+                    {predictionsByMessage.get(m._id)?.map((p) => <VerdictCard key={p._id} p={p} />)}
                     <Markdown>{m.content}</Markdown>
                     <ContextChip ctx={m.relevantContext} provider={m.provider} model={m.model} />
                   </div>
@@ -440,7 +473,40 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
         </div>
 
         <form
-          className="border-t border-border p-3"
+          className="flex flex-wrap items-center gap-1.5 border-t border-border px-3 pt-2.5 text-[11px] text-muted"
+          onSubmit={(e) => e.preventDefault()}
+          aria-label="Quick verdict"
+        >
+          <Gauge className="size-3.5" aria-hidden />
+          <span>Quick verdict on</span>
+          <Input
+            value={verdictCoin}
+            onChange={(e) => setVerdictCoin(e.target.value.toUpperCase())}
+            placeholder={focus?.replace(/USDT$/, "") ?? "SOL"}
+            maxLength={20}
+            aria-label="Coin for a quick verdict"
+            className="h-6 w-20 px-1.5 text-[11px] uppercase"
+          />
+          {HORIZONS.map((h) => {
+            const coin = verdictCoin.trim() || focus?.replace(/USDT$/, "") || "";
+            return (
+              <button
+                key={h.value}
+                type="button"
+                disabled={!coin || busy || !aiConfigured}
+                onClick={() => {
+                  void send({ content: verdictPrompt(coin, h.phrase) });
+                  setVerdictCoin("");
+                }}
+                className="rounded-full border border-border-strong px-2.5 py-0.5 transition-colors hover:border-accent/50 hover:text-fg disabled:opacity-40"
+              >
+                {h.label}
+              </button>
+            );
+          })}
+        </form>
+        <form
+          className="p-3 pt-2"
           onSubmit={(e) => {
             e.preventDefault();
             if (input.trim() && !busy) void send({ content: input.trim() });

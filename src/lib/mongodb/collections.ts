@@ -16,6 +16,7 @@ import type {
   NotificationDoc,
   PortfolioDoc,
   PortfolioSnapshotDoc,
+  PredictionDoc,
   RateLimitDoc,
   TransactionDoc,
   UserDoc,
@@ -36,6 +37,7 @@ export const COLLECTIONS = {
   messages: "messages",
   aiResearch: "ai_research",
   discoveryShortlists: "discovery_shortlists",
+  predictions: "ai_predictions",
   decisionJournal: "decision_journal",
   alerts: "alerts",
   notifications: "notifications",
@@ -57,6 +59,7 @@ export interface Collections {
   messages: Collection<MessageDoc>;
   aiResearch: Collection<AIResearchDoc>;
   discoveryShortlists: Collection<DiscoveryShortlistDoc>;
+  predictions: Collection<PredictionDoc>;
   decisionJournal: Collection<DecisionJournalDoc>;
   alerts: Collection<AlertDoc>;
   notifications: Collection<NotificationDoc>;
@@ -101,6 +104,10 @@ export async function ensureIndexes(db: Db): Promise<void> {
     c(COLLECTIONS.aiResearch).createIndex({ userId: 1, symbol: 1, timestamp: -1 }),
     c(COLLECTIONS.aiResearch).createIndex({ userId: 1, timestamp: -1 }),
     c(COLLECTIONS.discoveryShortlists).createIndex({ userId: 1, timestamp: -1 }),
+    c(COLLECTIONS.predictions).createIndex({ userId: 1, timestamp: -1 }),
+    c(COLLECTIONS.predictions).createIndex({ userId: 1, symbol: 1, timestamp: -1 }),
+    c(COLLECTIONS.predictions).createIndex({ conversationId: 1 }),
+    c(COLLECTIONS.predictions).createIndex({ userId: 1, evaluation: 1, dueAt: 1 }),
 
     c(COLLECTIONS.decisionJournal).createIndex({ userId: 1, timestamp: -1 }),
     c(COLLECTIONS.decisionJournal).createIndex({ userId: 1, symbol: 1, timestamp: -1 }),
@@ -135,6 +142,7 @@ export async function getCollections(): Promise<Collections> {
     messages: db.collection<MessageDoc>(COLLECTIONS.messages),
     aiResearch: db.collection<AIResearchDoc>(COLLECTIONS.aiResearch),
     discoveryShortlists: db.collection<DiscoveryShortlistDoc>(COLLECTIONS.discoveryShortlists),
+    predictions: db.collection<PredictionDoc>(COLLECTIONS.predictions),
     decisionJournal: db.collection<DecisionJournalDoc>(COLLECTIONS.decisionJournal),
     alerts: db.collection<AlertDoc>(COLLECTIONS.alerts),
     notifications: db.collection<NotificationDoc>(COLLECTIONS.notifications),

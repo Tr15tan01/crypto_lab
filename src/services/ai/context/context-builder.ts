@@ -3,9 +3,13 @@ import { getCollections } from "@/lib/mongodb/collections";
 import { marketData, type MarketTicker } from "@/services/binance";
 import { buildOverview } from "@/services/market/overview";
 import { summarizeIndicators } from "@/services/indicators/summary";
+import { buildScorecard } from "@/services/indicators/scorecard";
+import { summarizeTrackRecord } from "@/services/predictions/scoring";
+import type { PricedSymbol } from "@/services/predictions/prediction-service";
 import { getPortfolioState } from "@/services/portfolio/portfolio-service";
 import { scenarioImpact } from "@/services/portfolio/valuation";
 import type { Kline } from "@/services/binance/schemas";
+import type { PredictionDoc } from "@/models";
 import { detectIntent } from "./detect";
 
 export interface ContextSummary {
@@ -17,6 +21,8 @@ export interface ContextSummary {
 export interface BuiltContext {
   text: string;
   summary: ContextSummary;
+  /** Live (non-stale) prices of the pairs in the context, used to record the AI's calls. */
+  priced: Record<string, PricedSymbol>;
 }
 
 const DAY = 86_400_000;
@@ -110,19 +116,41 @@ export async function buildChatContext(
   const symbols = intent.baseAssets
     .map((b) => usdt.find((t) => t.baseAsset === b))
     .filter((t): t is MarketTicker => Boolean(t));
-  const { holdings, transactions, decisionJournal, watchlist, aiResearch, marketSnapshots, portfolios } = await getCollections();
+  const { holdings, transactions, decisionJournal, watchlist, aiResearch, marketSnapshots, portfolios, predictions } =
+    await getCollections();
   const activePortfolio = symbols.length ? await portfolios.findOne({ userId, status: "active" }) : null;
+  const priced: Record<string, PricedSymbol> = {};
+
+  // Shared inputs for the per-asset forecasting data: BTC as the benchmark and the AI's own record.
+  let btcDaily: Kline[] | null = null;
+  let pastCalls: PredictionDoc[] = [];
+  if (symbols.length) {
+    [btcDaily, pastCalls] = await Promise.all([
+      md.klines("BTCUSDT", "1d", "1y").then((r) => r.data).catch(() => null),
+      predictions.find({ userId }).sort({ timestamp: -1 }).limit(200).toArray(),
+    ]);
+  }
+  if (pastCalls.length) {
+    const record = summarizeTrackRecord(pastCalls);
+    ctx.myAITrackRecord = {
+      note: "Your own past directional calls in this chat, scored automatically at their horizon (close-to-close).",
+      ...record,
+    };
+    included.push("AI track record");
+  }
 
   const assets: Record<string, unknown>[] = [];
   for (const t of symbols) {
     const entry: Record<string, unknown> = { asset: t.baseAsset, ...tickerFacts(t) };
     if (tickersStale) entry.dataWarning = "STALE price data";
 
-    const [daily, first, symbolInfo] = await Promise.allSettled([
+    const [daily, first, symbolInfo, fourHour] = await Promise.allSettled([
       md.klines(t.symbol, "1d", "1y"),
       md.firstCandle(t.symbol),
       md.symbolInfo(t.symbol),
+      md.klines(t.symbol, "4h", "90d"),
     ]);
+    let compositeScore: number | null = null;
     if (symbolInfo.status === "fulfilled") {
       entry.binanceStatus = symbolInfo.value.data?.status ?? "not listed";
     }
@@ -155,6 +183,23 @@ export async function buildChatContext(
         ruleBasedReadings: s.signals.map((x) => `${x.name}: ${x.value} — ${x.note}`),
         warnings: s.warnings,
       };
+      const card = buildScorecard(k, s, t.baseAsset === "BTC" ? null : btcDaily);
+      compositeScore = card.composite;
+      entry.scorecard = {
+        note: "Rule-based summary computed by the application. composite: -100 (all bearish) … +100 (all bullish). Components score -2 … +2.",
+        composite: card.composite,
+        label: card.label,
+        components: card.components.map((c) => `${c.name} ${c.score > 0 ? "+" : ""}${c.score} (weight ${c.weight}): ${c.note}`),
+        relativeToBtc: card.relativeToBtc,
+        drawdownFrom1yHighPercent: card.drawdownFromHighPercent,
+        oneSigmaMovePercent: card.oneSigmaMovePercent,
+      };
+      entry.baseRates = {
+        note: "How this pair actually behaved over every past 7- and 30-day window in the last year (close to close). sameRegime only counts days on the same side of the 50-day SMA as today.",
+        allWindows: card.baseRates.allWindows,
+        sameRegime: card.baseRates.sameRegime,
+      };
+      included.push(`${t.baseAsset} scorecard`);
       entry.historicalCloses = {
         "1dAgo": priceAgo(k, 1),
         "7dAgo": priceAgo(k, 7),
@@ -164,6 +209,39 @@ export async function buildChatContext(
         "365dAgo": priceAgo(k, 364),
       };
       included.push(`${t.baseAsset} indicators`);
+    }
+
+    if (fourHour.status === "fulfilled" && fourHour.value.data.length > 50) {
+      const s4 = summarizeIndicators(fourHour.value.data, "4h", t.price);
+      entry.fourHourIndicators = {
+        computedFrom: `${s4.candles} closed 4h candles up to ${iso(s4.asOf)}`,
+        rsi14: round(s4.rsi14, 4),
+        macdHistogram: s4.macd ? round(s4.macd.histogram) : null,
+        ema20: round(s4.ema20),
+        ema50: round(s4.ema50),
+        returnsPercent: Object.fromEntries(Object.entries(s4.returns).map(([k2, v]) => [`${k2}x4h`, round(v, 4)])),
+        swingSupport: s4.levels.support.map((v) => round(v)),
+        swingResistance: s4.levels.resistance.map((v) => round(v)),
+        ruleBasedReadings: s4.signals.map((x) => `${x.name}: ${x.value} (${x.reading})`),
+      };
+      included.push(`${t.baseAsset} 4h indicators`);
+    }
+    if (!tickersStale) priced[t.symbol] = { price: t.price, compositeScore };
+
+    const calls = pastCalls.filter((p) => p.symbol === t.symbol).slice(0, 5);
+    if (calls.length) {
+      entry.myPastAICallsOnThisPair = calls.map((p) => ({
+        at: iso(p.timestamp),
+        bias: p.bias,
+        confidence: p.confidence,
+        horizon: p.horizon,
+        priceAtCall: p.priceAtPrediction,
+        target: p.target,
+        stop: p.stop,
+        result: p.evaluation
+          ? `${p.evaluation.outcome} (${round(p.evaluation.returnPercent, 3)}%${p.evaluation.levelHit && p.evaluation.levelHit !== "none" ? `, ${p.evaluation.levelHit} hit first` : ""})`
+          : `pending until ${iso(p.dueAt)}`,
+      }));
     }
 
     // The user's own data for this asset (always relevant to a question about it).
@@ -232,6 +310,26 @@ export async function buildChatContext(
       entry.storedMarketSnapshots = snaps.map((s) => ({ at: iso(s.dataTimestamp), price: s.price, reason: s.reason }));
     }
     assets.push(entry);
+  }
+  // A coin call needs the backdrop even when the question names no market-wide topic.
+  if (assets.length && !ctx.marketOverview && usdt.length) {
+    const o = buildOverview(tickers, "USDT");
+    const btc = usdt.find((t) => t.symbol === "BTCUSDT");
+    const btcSummary = btcDaily && btcDaily.length > 50 && btc ? summarizeIndicators(btcDaily, "1d", btc.price) : null;
+    ctx.marketBackdrop = {
+      breadth: `${o.advancers} advancers / ${o.decliners} decliners among ${o.liquidPairCount} liquid USDT pairs`,
+      medianChange24hPercent: round(o.medianChangePercent, 4),
+      btc: btc
+        ? {
+            lastPrice: btc.price,
+            change24hPercent: round(btc.priceChangePercent, 4),
+            returnsPercent: btcSummary ? Object.fromEntries(Object.entries(btcSummary.returns).map(([k, v]) => [k, round(v, 4)])) : null,
+            ema50AboveEma200: btcSummary?.ema50 != null && btcSummary.ema200 != null ? btcSummary.ema50 > btcSummary.ema200 : null,
+            rsi14: btcSummary ? round(btcSummary.rsi14, 4) : null,
+          }
+        : null,
+    };
+    included.push("market backdrop");
   }
   if (assets.length) {
     ctx.assets = assets;
@@ -307,5 +405,6 @@ export async function buildChatContext(
       included,
       dataTimestamp: dataTimestamp ? new Date(dataTimestamp).toISOString() : null,
     },
+    priced,
   };
 }
