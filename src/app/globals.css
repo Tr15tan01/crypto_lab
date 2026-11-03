@@ -1,8 +1,13 @@
 @import "tailwindcss";
 
+/* `light:` utilities apply under <html data-theme="light">. */
+@custom-variant light (&:where([data-theme=light], [data-theme=light] *));
+
 /*
- * Design tokens — a dark, terminal-like research desk.
- * Charcoal surfaces separated by hairline borders, one restrained amber accent,
+ * Design tokens — a terminal-like research desk. Dark is the default; the light palette
+ * below overrides the same tokens when <html data-theme="light"> (set before first paint
+ * by the inline script in app/layout.tsx).
+ * Neutral surfaces separated by hairline borders, one restrained amber accent,
  * and green/red reserved strictly for price direction.
  */
 @theme {
@@ -34,6 +39,15 @@
   --color-warn: #e8a33d;
   --color-info: #6ea8fe;
 
+  /* Chart chrome and elevation. */
+  --color-chart-grid: #1c2027;
+  --color-chart-baseline: #3a404a;
+  --color-chart-label: #c3c7cd;
+  --color-chart-muted: #6b7280;
+  --color-chart-cash: #4b525c;
+  --color-hover-overlay: rgb(255 255 255 / 0.03);
+  --color-shadow: #000000;
+
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
 
@@ -57,6 +71,34 @@
 @layer base {
   :root {
     color-scheme: dark;
+  }
+
+  /* Contrast-checked on the light surfaces: text tokens ≥ 4.5:1 on white, up/down/accent ≥ 4.2:1. */
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --color-bg: #f5f6f8;
+    --color-surface: #ffffff;
+    --color-surface-2: #f6f7f9;
+    --color-surface-3: #eceef2;
+    --color-border: #e2e5ea;
+    --color-border-strong: #cdd2d9;
+    --color-fg: #14171c;
+    --color-muted: #545c67;
+    --color-faint: #7d848e;
+    --color-accent: #a66f0c;
+    --color-accent-fg: #ffffff;
+    --color-up: #13805a;
+    --color-down: #d1393b;
+    --color-warn: #a86400;
+    --color-info: #2563c9;
+    --color-series-4: #b07400;
+    --color-chart-grid: #e8eaee;
+    --color-chart-baseline: #c3c8cf;
+    --color-chart-label: #3a414b;
+    --color-chart-muted: #8a919b;
+    --color-chart-cash: #a3a9b2;
+    --color-hover-overlay: rgb(0 0 0 / 0.04);
+    --color-shadow: #4b5563;
   }
 
   html,
@@ -121,7 +163,7 @@
   .prose-terminal ul { list-style: disc; padding-left: 1.25em; }
   .prose-terminal ol { list-style: decimal; padding-left: 1.25em; }
   .prose-terminal li + li { margin-top: 0.25em; }
-  .prose-terminal strong { font-weight: 600; color: #f3f4f6; }
+  .prose-terminal strong { font-weight: 600; color: var(--color-fg); }
   .prose-terminal code {
     font-family: var(--font-mono);
     font-size: 0.85em;

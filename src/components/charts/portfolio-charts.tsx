@@ -32,7 +32,7 @@ interface TipProps {
 
 function Tip({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-md border border-border-strong bg-surface-2/95 px-3 py-2 text-xs shadow-xl shadow-black/50">{children}</div>
+    <div className="rounded-md border border-border-strong bg-surface-2/95 px-3 py-2 text-xs shadow-xl shadow-shadow/50">{children}</div>
   );
 }
 
@@ -117,7 +117,7 @@ export function AllocationChart({ slices }: { slices: Array<{ label: string; val
   const head = sorted.slice(0, 7);
   const rest = sorted.slice(7).reduce((s, x) => s + x.value, 0);
   const data = rest > 0 ? [...head, { label: "Other", value: rest }] : head;
-  const colors = data.map((d, i) => (d.label === "Cash" ? "#4b525c" : d.label === "Other" ? "#6b7280" : SERIES[i % SERIES.length]!));
+  const colors = data.map((d, i) => (d.label === "Cash" ? CHART.cash : d.label === "Other" ? CHART.muted : SERIES[i % SERIES.length]!));
   return (
     <div className="flex flex-col items-center gap-4 sm:flex-row">
       <div className="h-48 w-48 shrink-0" role="img" aria-label="Asset allocation">
@@ -174,10 +174,10 @@ export function AssetPnLChart({ rows }: { rows: Array<{ label: string; realized:
         <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 0 }} barGap={2} barCategoryGap="28%">
           <CartesianGrid stroke={CHART.grid} horizontal={false} />
           <XAxis type="number" tickFormatter={(v: number) => formatUsd(v, { compact: true })} {...axisProps} />
-          <YAxis type="category" dataKey="label" width={64} {...axisProps} tick={{ ...CHART.tick, fill: "#c3c7cd" }} />
+          <YAxis type="category" dataKey="label" width={64} {...axisProps} tick={{ ...CHART.tick, fill: CHART.label }} />
           <ReferenceLine x={0} stroke={CHART.baseline} />
           <Tooltip
-            cursor={{ fill: "rgba(255,255,255,0.03)" }}
+            cursor={{ fill: CHART.hover }}
             isAnimationActive={false}
             content={({ active, payload }: TipProps) => {
               if (!active || !payload?.length) return null;
@@ -216,7 +216,7 @@ export function MonthlyChart({ months }: { months: Array<{ month: string; return
           <YAxis tickFormatter={(v: number) => `${v}%`} width={44} {...axisProps} />
           <ReferenceLine y={0} stroke={CHART.baseline} />
           <Tooltip
-            cursor={{ fill: "rgba(255,255,255,0.03)" }}
+            cursor={{ fill: CHART.hover }}
             isAnimationActive={false}
             content={({ active, payload }: TipProps) => {
               if (!active || !payload?.length) return null;
@@ -271,7 +271,7 @@ export function ActivityTimeline({
         <ScatterChart margin={{ top: 8, right: 16, left: 4, bottom: 0 }}>
           <CartesianGrid stroke={CHART.grid} />
           <XAxis dataKey="t" type="number" scale="time" domain={["dataMin - 3600000", "dataMax + 3600000"]} tickFormatter={(v: number) => formatAxisTime(v, Math.max(span, 86_400_000 * 3))} minTickGap={50} {...axisProps} />
-          <YAxis dataKey="y" type="number" domain={[-0.5, symbols.length - 0.5]} ticks={symbols.map((_, i) => i)} tickFormatter={(i: number) => symbols[i]?.replace(/USDT$/, "") ?? ""} width={56} {...axisProps} tick={{ ...CHART.tick, fill: "#c3c7cd" }} />
+          <YAxis dataKey="y" type="number" domain={[-0.5, symbols.length - 0.5]} ticks={symbols.map((_, i) => i)} tickFormatter={(i: number) => symbols[i]?.replace(/USDT$/, "") ?? ""} width={56} {...axisProps} tick={{ ...CHART.tick, fill: CHART.label }} />
           <ZAxis range={[80, 80]} />
           <Tooltip
             isAnimationActive={false}

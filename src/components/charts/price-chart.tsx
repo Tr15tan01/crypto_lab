@@ -59,7 +59,7 @@ const OVERLAYS: Array<{ key: Overlay; label: string; color: string }> = [
   { key: "ema20", label: "EMA 20", color: SERIES[0] },
   { key: "ema50", label: "EMA 50", color: SERIES[1] },
   { key: "ema200", label: "EMA 200", color: SERIES[2] },
-  { key: "bb", label: "Bollinger 20,2", color: "#6b7280" },
+  { key: "bb", label: "Bollinger 20,2", color: CHART.muted },
 ];
 
 /** Candle body + wick. Up candles are hollow, down candles filled — direction is not colour-only. */
@@ -106,7 +106,7 @@ function PriceTooltip({ active, payload }: TipProps) {
   const row = payload[0]!.payload as Row;
   const change = row.open ? ((row.close - row.open) / row.open) * 100 : null;
   return (
-    <div className="rounded-md border border-border-strong bg-surface-2/95 px-3 py-2 text-xs shadow-xl shadow-black/50">
+    <div className="rounded-md border border-border-strong bg-surface-2/95 px-3 py-2 text-xs shadow-xl shadow-shadow/50">
       <p className="mb-1.5 text-muted">{formatDateTime(row.t)}</p>
       <dl className="num grid grid-cols-[auto_auto] gap-x-4 gap-y-0.5">
         <dt className="text-muted">Open</dt>
@@ -299,8 +299,8 @@ export function PriceChart({ symbol, initialPeriod = "30d" }: { symbol: string; 
               />
               {overlays.has("bb") ? (
                 <>
-                  <Line dataKey="bbUpper" stroke="#6b7280" strokeWidth={1} strokeDasharray="4 3" dot={false} isAnimationActive={false} connectNulls={false} />
-                  <Line dataKey="bbLower" stroke="#6b7280" strokeWidth={1} strokeDasharray="4 3" dot={false} isAnimationActive={false} connectNulls={false} />
+                  <Line dataKey="bbUpper" stroke={CHART.muted} strokeWidth={1} strokeDasharray="4 3" dot={false} isAnimationActive={false} connectNulls={false} />
+                  <Line dataKey="bbLower" stroke={CHART.muted} strokeWidth={1} strokeDasharray="4 3" dot={false} isAnimationActive={false} connectNulls={false} />
                 </>
               ) : null}
               {effectiveMode === "candles" ? (
@@ -338,7 +338,7 @@ export function PriceChart({ symbol, initialPeriod = "30d" }: { symbol: string; 
                 minTickGap={48}
               />
               <YAxis orientation="right" tick={CHART.tick} tickFormatter={compactNumber} axisLine={false} tickLine={false} width={72} tickCount={2} />
-              <Tooltip content={(p) => <VolumeTooltip active={p.active} payload={p.payload} />} cursor={{ fill: "rgba(255,255,255,0.04)" }} isAnimationActive={false} />
+              <Tooltip content={(p) => <VolumeTooltip active={p.active} payload={p.payload} />} cursor={{ fill: CHART.hover }} isAnimationActive={false} />
               <Bar dataKey="volume" fill={CHART.neutral} fillOpacity={0.55} isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>

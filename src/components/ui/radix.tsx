@@ -36,7 +36,7 @@ export function DialogContent({
       <DialogPrimitive.Content
         className={cn(
           "fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto",
-          "rounded-lg border border-border-strong bg-surface shadow-2xl shadow-black/60 data-[state=open]:animate-fade-in",
+          "rounded-lg border border-border-strong bg-surface shadow-2xl shadow-shadow/60 data-[state=open]:animate-fade-in",
           wide ? "max-w-2xl" : "max-w-md",
           className,
         )}
@@ -137,7 +137,7 @@ export function Tooltip({ content, children }: { content: React.ReactNode; child
         <TooltipPrimitive.Portal>
           <TooltipPrimitive.Content
             sideOffset={6}
-            className="z-50 max-w-xs rounded-md border border-border-strong bg-surface-2 px-2.5 py-1.5 text-xs leading-relaxed text-fg shadow-lg shadow-black/50"
+            className="z-50 max-w-xs rounded-md border border-border-strong bg-surface-2 px-2.5 py-1.5 text-xs leading-relaxed text-fg shadow-lg shadow-shadow/50"
           >
             {content}
           </TooltipPrimitive.Content>
@@ -176,7 +176,7 @@ export function DropdownMenuContent({ className, ...props }: React.ComponentProp
         sideOffset={4}
         align="end"
         className={cn(
-          "z-50 min-w-40 rounded-md border border-border-strong bg-surface-2 p-1 shadow-xl shadow-black/50 data-[state=open]:animate-fade-in",
+          "z-50 min-w-40 rounded-md border border-border-strong bg-surface-2 p-1 shadow-xl shadow-shadow/50 data-[state=open]:animate-fade-in",
           className,
         )}
         {...props}

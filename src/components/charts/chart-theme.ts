@@ -10,16 +10,21 @@ export const SERIES = [
   "var(--color-series-8)",
 ] as const;
 
+/** Theme-aware: every value is a CSS variable, so charts follow the light/dark switch. */
 export const CHART = {
-  grid: "#1c2027",
-  axis: "#5d646e",
-  axisText: "#8b929c",
+  grid: "var(--color-chart-grid)",
+  axis: "var(--color-faint)",
+  axisText: "var(--color-muted)",
   up: "var(--color-up)",
   down: "var(--color-down)",
-  neutral: "#5d646e",
-  baseline: "#3a404a",
-  surface: "#101216",
-  tick: { fill: "#8b929c", fontSize: 11, fontFamily: "var(--font-mono)" },
+  neutral: "var(--color-faint)",
+  baseline: "var(--color-chart-baseline)",
+  surface: "var(--color-surface)",
+  label: "var(--color-chart-label)",
+  muted: "var(--color-chart-muted)",
+  cash: "var(--color-chart-cash)",
+  hover: "var(--color-hover-overlay)",
+  tick: { fill: "var(--color-muted)", fontSize: 11, fontFamily: "var(--font-mono)" },
 } as const;
 
 export function formatAxisTime(ms: number, spanMs: number): string {

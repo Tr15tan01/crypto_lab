@@ -7,6 +7,7 @@ import { useApi } from "@/hooks/use-api";
 import { apiFetch } from "@/lib/client/api";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, Tooltip } from "@/components/ui/radix";
 import { cn, formatDateTime, formatRelative } from "@/lib/utils/format";
+import { ThemeSwitch } from "./theme-switch";
 
 interface MarketStatus {
   state: "live" | "stale" | "unavailable";
@@ -138,6 +139,7 @@ export function TopBar() {
       </Tooltip>
       <div className="flex items-center gap-2">
         <MarketStatusPill />
+        <ThemeSwitch />
         <Notifications />
       </div>
     </div>
