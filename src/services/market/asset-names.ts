@@ -93,6 +93,15 @@ export function assetName(baseAsset: string): string | null {
   return ASSET_NAMES[baseAsset] ?? null;
 }
 
+/**
+ * Binance lists tokenized stocks and ETFs as "<TICKER>B" (AAPLB, NVDAB, SOXSB…). There is no
+ * flag for them in exchangeInfo, so this is a heuristic: 4+ letters ending in B and not a known
+ * crypto asset. Used to keep equities out of crypto buy suggestions.
+ */
+export function isLikelyTokenizedStock(baseAsset: string): boolean {
+  return baseAsset.length >= 4 && /^[A-Z]+B$/.test(baseAsset) && !ASSET_NAMES[baseAsset];
+}
+
 const NAME_INDEX: Array<[RegExp, string]> = Object.entries(ASSET_NAMES)
   .filter(([sym, name]) => name.length > 3 && name.toUpperCase() !== sym)
   .map(([sym, name]) => [new RegExp(`\\b${name.split(" ")[0]!.replace(/[^A-Za-z0-9]/g, "")}\\b`, "i"), sym]);

@@ -108,7 +108,7 @@ async function runScan(): Promise<DiscoveryScan> {
 }
 
 export async function getDiscoveryScan(): Promise<MarketResult<DiscoveryScan>> {
-  return scanCache().get("discovery:v1", SCAN_TTL_SECONDS, runScan, { persist: true, persistEverySeconds: SCAN_TTL_SECONDS });
+  return scanCache().get("discovery:v2", SCAN_TTL_SECONDS, runScan, { persist: true, persistEverySeconds: SCAN_TTL_SECONDS });
 }
 
 /* ───────────── AI shortlist ───────────── */

@@ -124,7 +124,7 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
   const focus = current?.focus ?? null;
   const predictionsByMessage = useMemo(() => {
     const map = new Map<string, Prediction[]>();
-    for (const p of current?.predictions ?? []) map.set(p.messageId, [...(map.get(p.messageId) ?? []), p]);
+    for (const p of current?.predictions ?? []) if (p.messageId) map.set(p.messageId, [...(map.get(p.messageId) ?? []), p]);
     return map;
   }, [current]);
   const loadingConv = viewId !== null && current === null;

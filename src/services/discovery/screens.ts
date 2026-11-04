@@ -1,6 +1,6 @@
 import type { Kline } from "@/services/binance/schemas";
 import type { MarketTicker } from "@/services/binance/market-data";
-import { last, rsi, sma } from "@/services/indicators/core";
+import { bollinger, last, rsi, sma } from "@/services/indicators/core";
 import { pctChange } from "@/lib/utils/math";
 import { formatCompact } from "@/lib/utils/format";
 import { THRESHOLDS, type DiscoverySignal } from "./signals";
@@ -43,6 +43,10 @@ export interface DiscoveryRow {
   rsiLow: number | null;
   high90d: number | null;
   fromHigh90d: number | null;
+  /** Percentile (0–100) of today's Bollinger bandwidth within the squeeze lookback. Low = quiet. */
+  bandwidthPercentile: number | null;
+  /** 20-day on-balance-volume flow as a share of 20-day volume (−1 … +1). */
+  volumeFlow20d: number | null;
   signals: DiscoverySignal[];
   cautions: string[];
   /** Number of independent signals firing. */
@@ -89,6 +93,34 @@ function goldenCross(closes: number[]): number | null {
   return null;
 }
 
+/** Where today's Bollinger bandwidth ranks among the last `lookback` days, in percent. */
+export function bandwidthPercentile(closes: number[], lookback: number): number | null {
+  const bb = bollinger(closes, 20, 2);
+  const widths: number[] = [];
+  for (let i = Math.max(0, closes.length - lookback); i < closes.length; i++) {
+    const u = bb.upper[i];
+    const l = bb.lower[i];
+    const m = bb.middle[i];
+    if (u !== null && l !== null && m !== null && m !== undefined && u !== undefined && l !== undefined && m > 0) widths.push((u - l) / m);
+  }
+  if (widths.length < lookback * 0.8) return null;
+  const today = widths[widths.length - 1]!;
+  return (widths.filter((w) => w < today).length / (widths.length - 1)) * 100;
+}
+
+/** Net on-balance volume over the last `days` closed candles, divided by their total volume. */
+export function volumeFlow(candles: Kline[], days: number): number | null {
+  if (candles.length <= days) return null;
+  let flow = 0;
+  let total = 0;
+  for (let i = candles.length - days; i < candles.length; i++) {
+    const dir = Math.sign(candles[i]!.close - candles[i - 1]!.close);
+    flow += dir * candles[i]!.volume;
+    total += candles[i]!.volume;
+  }
+  return total > 0 ? flow / total : null;
+}
+
 export function analyzePair(
   ticker: MarketTicker,
   candles: Kline[],
@@ -132,6 +164,24 @@ export function analyzePair(
   }
   if (high90d !== null && price > high90d) signals.push("breakout");
 
+  const bwPct = bandwidthPercentile(closes, THRESHOLDS.squeezeLookbackDays);
+  if (bwPct !== null && bwPct <= THRESHOLDS.squeezePercentile) signals.push("volatility_squeeze");
+
+  const sma50v = last(sma(closes, 50));
+  const sma200v = last(sma(closes, 200));
+  if (
+    sma50v !== null && sma200v !== null && sma50v > sma200v && price > sma200v &&
+    rsi14 !== null && rsi14 >= THRESHOLDS.pullbackRsiLow && rsi14 <= THRESHOLDS.pullbackRsiHigh
+  ) {
+    signals.push("trend_pullback");
+  }
+
+  const flow = volumeFlow(closed, THRESHOLDS.accumulationDays);
+  const move = returnOver(closes, price, THRESHOLDS.accumulationDays);
+  if (flow !== null && move !== null && flow >= THRESHOLDS.accumulationFlow && Math.abs(move) < THRESHOLDS.accumulationMaxMovePercent) {
+    signals.push("accumulation");
+  }
+
   const cautions: string[] = [];
   if (ticker.quoteVolume < THRESHOLDS.thinLiquidity) {
     cautions.push(
@@ -163,13 +213,15 @@ export function analyzePair(
     return30d,
     vsBtc7d,
     vsBtc30d,
-    sma50: last(sma(closes, 50)),
-    sma200: last(sma(closes, 200)),
+    sma50: sma50v,
+    sma200: sma200v,
     goldenCrossDaysAgo,
     rsi14,
     rsiLow,
     high90d,
     fromHigh90d: high90d !== null ? pctChange(high90d, price) : null,
+    bandwidthPercentile: bwPct,
+    volumeFlow20d: flow,
     signals,
     cautions,
     score: signals.length,

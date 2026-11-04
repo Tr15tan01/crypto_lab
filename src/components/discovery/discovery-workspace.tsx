@@ -54,9 +54,10 @@ interface Shortlist {
   timestamp: string;
 }
 
-type ScreenKey = "top" | "new" | "volume" | "momentum" | "trend";
+type ScreenKey = "top" | "new" | "volume" | "momentum" | "trend" | "setup";
 
 const TREND_SIGNALS: DiscoverySignal[] = ["golden_cross", "oversold_bounce", "breakout"];
+const SETUP_SIGNALS: DiscoverySignal[] = ["volatility_squeeze", "trend_pullback", "accumulation"];
 
 const SCREENS: Array<{
   key: ScreenKey;
@@ -98,6 +99,13 @@ const SCREENS: Array<{
     label: "Trend changes",
     description: "A fresh golden cross (50-day above 200-day average), a bounce from oversold RSI, or a new 90-day high.",
     filter: (r) => r.signals.some((s) => TREND_SIGNALS.includes(s)),
+    sort: (a, b) => b.score - a.score || (b.vsBtc30d ?? 0) - (a.vsBtc30d ?? 0),
+  },
+  {
+    key: "setup",
+    label: "Early setups",
+    description: "Before the move: a volatility squeeze (unusually quiet price), a dip inside a long-term uptrend, or buying volume building while the price is still flat.",
+    filter: (r) => r.signals.some((s) => SETUP_SIGNALS.includes(s)),
     sort: (a, b) => b.score - a.score || (b.vsBtc30d ?? 0) - (a.vsBtc30d ?? 0),
   },
 ];

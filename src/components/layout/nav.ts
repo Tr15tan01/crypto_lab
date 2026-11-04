@@ -9,6 +9,8 @@ import {
   NotebookPen,
   ChartNoAxesCombined,
   Settings,
+  Trophy,
+  Bot,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,6 +25,8 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/market", label: "Market Scanner", icon: ScanSearch, match: ["/crypto"] },
   { href: "/discover", label: "Discovery", icon: Telescope },
+  { href: "/autopilot", label: "Autopilot", icon: Bot },
+  { href: "/traders", label: "Top Traders", icon: Trophy },
   { href: "/watchlist", label: "Watchlist", icon: Star },
   { href: "/portfolio", label: "Portfolio", icon: Wallet },
   { href: "/research", label: "AI Research", icon: Sparkles },

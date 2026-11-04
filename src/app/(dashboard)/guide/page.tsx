@@ -90,6 +90,12 @@ const SCREEN_GUIDE: Array<{ name: string; what: string; why: string; watchOut: s
     why: "These mark the moment a downtrend or a sideways range may be ending. Big long-term moves start from one of these.",
     watchOut: "Moving averages lag: a golden cross often comes after a large part of the move. Breakouts fail often, so note what price would mean the breakout failed.",
   },
+  {
+    name: "Early setups",
+    what: "A volatility squeeze, a dip inside a long-term uptrend, or volume accumulating while the price is flat.",
+    why: "These fire before a move rather than after it, so entries are closer to the start of a trend and stops can sit closer.",
+    watchOut: "A squeeze says a big move is likely, not which way. Wait for the breakout direction, and treat accumulation as a hint until price confirms it.",
+  },
 ];
 
 export default async function GuidePage() {
@@ -166,7 +172,7 @@ export default async function GuidePage() {
           <Section
             id="discovery"
             title="Discovery screens"
-            description="Every liquid USDT pair is checked against six signals, using daily candles from Binance. The scan refreshes every 15 minutes."
+            description={`Every liquid USDT pair is checked against ${DISCOVERY_SIGNALS.length} signals, using daily candles from Binance. The scan refreshes every 15 minutes.`}
           >
             <p>
               The scan covers USDT pairs trading at least 250K per day (up to 300 pairs, stablecoins excluded). Each tab is a screen

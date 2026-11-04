@@ -1,0 +1,430 @@
+import type { IndicatorSummary } from "@/services/indicators/summary";
+import type { Scorecard } from "@/services/indicators/scorecard";
+import type { DiscoveryRow } from "@/services/discovery/screens";
+import type { DiscoverySignal } from "@/services/discovery/signals";
+
+/**
+ * Autopilot decision engine. Pure and deterministic: the same inputs always give the same plan,
+ * and every number is explained by a factor. It ranks setups and sizes positions by risk; it
+ * cannot know the future, and its calls are scored afterwards like the chat's.
+ */
+
+export type AutopilotAction = "BUY" | "ADD" | "HOLD" | "TRIM" | "SELL" | "WATCH" | "NEUTRAL" | "AVOID";
+export type Timing = "now" | "wait_for_pullback" | "on_breakout" | "exit_now" | "on_bounce" | "none";
+
+export interface Factor {
+  name: string;
+  /** -2 … +2 */
+  score: number;
+  weight: number;
+  note: string;
+}
+
+export interface RegimeInput {
+  btcAboveSma50: boolean | null;
+  btcAboveSma200: boolean | null;
+  btcReturn7dPercent: number | null;
+  /** Share of scanned pairs above their 50-day SMA. */
+  breadthPercent: number | null;
+  fearGreed: number | null;
+}
+
+export interface Regime {
+  mode: "risk_on" | "neutral" | "risk_off";
+  /** Multiplier applied to buy sizes. */
+  sizeMultiplier: number;
+  score: number;
+  notes: string[];
+}
+
+export interface DerivativesInput {
+  fundingRatePercent: number;
+  openInterestChange1dPercent: number | null;
+  openInterestChange7dPercent: number | null;
+  longAccountsPercent: number | null;
+  topTraderLongShortRatio: number | null;
+  takerBuySellRatio: number | null;
+}
+
+export interface EngineInput {
+  row: DiscoveryRow;
+  daily: IndicatorSummary;
+  fourHour: IndicatorSummary | null;
+  scorecard: Scorecard;
+  derivatives: DerivativesInput | null;
+  orderBookImbalance: number | null;
+  smartMoney: { longs: number; shorts: number; traders: number } | null;
+  holding: { quantity: number; averageCost: number } | null;
+}
+
+export interface SizingInput {
+  portfolioValue: number;
+  cash: number;
+  /** Percent of portfolio risked per trade if the stop is hit. */
+  riskPerTradePercent: number;
+  /** Max allocation of one position, percent of portfolio. */
+  maxPositionPercent: number;
+}
+
+export interface Recommendation {
+  symbol: string;
+  baseAsset: string;
+  name: string | null;
+  price: number;
+  action: AutopilotAction;
+  /** -100 … +100 */
+  score: number;
+  /** Probability-style confidence that the direction is right over ~7 days (50 … 85). */
+  confidence: number;
+  timing: Timing;
+  timingNote: string;
+  entry: { low: number; high: number } | null;
+  target: number | null;
+  stop: number | null;
+  riskReward: number | null;
+  /** Suggested size in quote currency (buys: amount to spend; sells: value to sell). */
+  suggestedAmount: number | null;
+  suggestedAllocationPercent: number | null;
+  /** For holdings: share of the position to sell (0–100). */
+  sellPercent: number | null;
+  factors: Factor[];
+  reasonsFor: string[];
+  reasonsAgainst: string[];
+  signals: DiscoverySignal[];
+  cautions: string[];
+  holding: { quantity: number; averageCost: number; marketValue: number; pnlPercent: number } | null;
+}
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+export function assessRegime(r: RegimeInput): Regime {
+  let score = 0;
+  const notes: string[] = [];
+  if (r.btcAboveSma200 !== null) {
+    score += r.btcAboveSma200 ? 1 : -1;
+    notes.push(r.btcAboveSma200 ? "BTC above its 200-day average (bull structure)" : "BTC below its 200-day average (bear structure)");
+  }
+  if (r.btcAboveSma50 !== null) {
+    score += r.btcAboveSma50 ? 1 : -1;
+    notes.push(r.btcAboveSma50 ? "BTC above its 50-day average" : "BTC below its 50-day average");
+  }
+  if (r.breadthPercent !== null) {
+    const b = r.breadthPercent;
+    score += b >= 60 ? 1 : b <= 35 ? -1 : 0;
+    notes.push(`${b.toFixed(0)}% of coins above their 50-day average`);
+  }
+  if (r.fearGreed !== null) {
+    // Contrarian at the extremes: extreme fear has historically been a better time to buy than extreme greed.
+    if (r.fearGreed <= 20) {
+      score += 0.5;
+      notes.push(`Extreme fear (${r.fearGreed}) — contrarian tailwind, but expect volatility`);
+    } else if (r.fearGreed >= 80) {
+      score -= 1;
+      notes.push(`Extreme greed (${r.fearGreed}) — late-cycle risk, tighten stops`);
+    } else notes.push(`Fear & Greed ${r.fearGreed}`);
+  }
+  const mode = score >= 1.5 ? "risk_on" : score <= -1.5 ? "risk_off" : "neutral";
+  return { mode, sizeMultiplier: mode === "risk_on" ? 1 : mode === "neutral" ? 0.75 : 0.4, score, notes };
+}
+
+const BULLISH_SIGNALS: DiscoverySignal[] = [
+  "volume_surge",
+  "outperforming_btc",
+  "golden_cross",
+  "oversold_bounce",
+  "breakout",
+  "trend_pullback",
+  "accumulation",
+];
+
+export function buildFactors(input: EngineInput): Factor[] {
+  const { row, daily, fourHour, scorecard, derivatives: d, orderBookImbalance, smartMoney } = input;
+  const f: Factor[] = [];
+
+  f.push({
+    name: "Scorecard",
+    score: clamp(scorecard.composite / 40, -2, 2),
+    weight: 0.3,
+    note: `Trend, momentum, strength vs BTC, range and volume combine to ${scorecard.composite > 0 ? "+" : ""}${scorecard.composite} (${scorecard.label})`,
+  });
+
+  const bullish = row.signals.filter((s) => BULLISH_SIGNALS.includes(s));
+  f.push({
+    name: "Discovery signals",
+    score: clamp(bullish.length * 0.75, 0, 2),
+    weight: 0.12,
+    note: bullish.length ? `${bullish.length} bullish signal${bullish.length > 1 ? "s" : ""} firing` : "no discovery signal",
+  });
+
+  if (fourHour) {
+    let s = 0;
+    const notes: string[] = [];
+    if (fourHour.macd) {
+      s += fourHour.macd.histogram > 0 ? 1 : -1;
+      notes.push(fourHour.macd.histogram > 0 ? "4h MACD rising" : "4h MACD falling");
+    }
+    if (fourHour.ema20 !== null) {
+      s += daily.price > fourHour.ema20 ? 0.5 : -0.5;
+      notes.push(daily.price > fourHour.ema20 ? "above 4h EMA20" : "below 4h EMA20");
+    }
+    if (fourHour.rsi14 !== null && fourHour.rsi14 > 75) {
+      s -= 0.5;
+      notes.push(`4h RSI ${fourHour.rsi14.toFixed(0)} overheated`);
+    }
+    f.push({ name: "Short-term momentum", score: clamp(s, -2, 2), weight: 0.12, note: notes.join("; ") });
+  }
+
+  const sr = scorecard.baseRates.sameRegime?.stats.find((x) => x.horizonDays === 7);
+  if (sr) {
+    f.push({
+      name: "History in this regime",
+      score: clamp((sr.upPercent - 50) / 8, -2, 2),
+      weight: 0.08,
+      note: `${sr.upPercent.toFixed(0)}% of past 7-day windows rose in the same trend regime (median ${sr.medianReturnPercent > 0 ? "+" : ""}${sr.medianReturnPercent.toFixed(1)}%)`,
+    });
+  }
+
+  if (d) {
+    let s = 0;
+    const notes: string[] = [];
+    const priceUp = (row.return7d ?? 0) > 0;
+    if (d.fundingRatePercent >= 0.05) {
+      s -= 1;
+      notes.push(`funding ${d.fundingRatePercent.toFixed(3)}%/8h — longs crowded`);
+    } else if (d.fundingRatePercent <= -0.01) {
+      s += priceUp ? 1 : 0.5;
+      notes.push(`negative funding ${d.fundingRatePercent.toFixed(3)}% — shorts paying, squeeze fuel`);
+    }
+    if (d.openInterestChange7dPercent !== null && Math.abs(d.openInterestChange7dPercent) >= 10) {
+      const oiUp = d.openInterestChange7dPercent > 0;
+      s += oiUp === priceUp ? (priceUp ? 0.75 : -0.75) : 0;
+      notes.push(`open interest ${oiUp ? "+" : ""}${d.openInterestChange7dPercent.toFixed(0)}% in 7d ${oiUp === priceUp ? (priceUp ? "confirms the rise" : "adds to the selling") : "diverges from price"}`);
+    }
+    if (d.takerBuySellRatio !== null) {
+      if (d.takerBuySellRatio >= 1.08) {
+        s += 0.5;
+        notes.push(`aggressive buyers (taker ratio ${d.takerBuySellRatio.toFixed(2)})`);
+      } else if (d.takerBuySellRatio <= 0.92) {
+        s -= 0.5;
+        notes.push(`aggressive sellers (taker ratio ${d.takerBuySellRatio.toFixed(2)})`);
+      }
+    }
+    if (d.longAccountsPercent !== null && d.longAccountsPercent >= 75) {
+      s -= 0.5;
+      notes.push(`${d.longAccountsPercent.toFixed(0)}% of accounts long — retail crowded (contrarian)`);
+    }
+    if (d.topTraderLongShortRatio !== null) {
+      if (d.topTraderLongShortRatio >= 2) {
+        s += 0.5;
+        notes.push(`top traders ${d.topTraderLongShortRatio.toFixed(1)}× long vs short`);
+      } else if (d.topTraderLongShortRatio <= 0.8) {
+        s -= 0.5;
+        notes.push(`top traders net short (${d.topTraderLongShortRatio.toFixed(2)})`);
+      }
+    }
+    f.push({ name: "Futures positioning", score: clamp(s, -2, 2), weight: 0.1, note: notes.join("; ") || "neutral positioning" });
+  }
+
+  if (orderBookImbalance !== null) {
+    const s = orderBookImbalance >= 0.25 ? 1 : orderBookImbalance <= -0.25 ? -1 : 0;
+    f.push({
+      name: "Order book",
+      score: s,
+      weight: 0.05,
+      note: `${orderBookImbalance >= 0 ? "bids" : "asks"} ${Math.abs(orderBookImbalance * 100).toFixed(0)}% heavier within ±2%`,
+    });
+  }
+
+  if (smartMoney && smartMoney.traders > 0) {
+    const net = smartMoney.longs - smartMoney.shorts;
+    f.push({
+      name: "Top copy traders",
+      score: clamp(net * 0.5 + (smartMoney.traders >= 3 ? Math.sign(net) * 0.5 : 0), -2, 2),
+      weight: 0.08,
+      note: `${smartMoney.traders} top trader${smartMoney.traders > 1 ? "s" : ""} opened ${smartMoney.longs} long / ${smartMoney.shorts} short in 7d`,
+    });
+  }
+
+  // Risk flags from the discovery screens are always a drag.
+  if (row.cautions.length) {
+    f.push({ name: "Risk flags", score: clamp(-row.cautions.length, -2, 0), weight: 0.1, note: row.cautions.join(" ") });
+  }
+  return f;
+}
+
+export function combine(factors: Factor[]): number {
+  const w = factors.reduce((a, f) => a + f.weight, 0);
+  if (w === 0) return 0;
+  return Math.round((factors.reduce((a, f) => a + (f.score / 2) * f.weight, 0) / w) * 100);
+}
+
+export interface Levels {
+  entry: { low: number; high: number };
+  target: number;
+  stop: number;
+  riskReward: number;
+}
+
+/** Entry, stop and target from swing levels and ATR. Stops never sit more than 25% away. */
+export function tradeLevels(daily: IndicatorSummary): Levels | null {
+  const price = daily.price;
+  const atr = daily.atr14;
+  if (!atr || !Number.isFinite(price) || price <= 0) return null;
+  const support = daily.levels.support[0] ?? null;
+  const resistance = daily.levels.resistance.find((r) => r > price + atr) ?? null;
+  let stop = support !== null && support > price - 3 * atr ? Math.min(support - 0.5 * atr, price - atr) : price - 2 * atr;
+  stop = Math.max(stop, price * 0.75);
+  const risk = price - stop;
+  let target = resistance ?? price + 3 * atr;
+  // Demand at least 1.5:1 reward/risk; otherwise aim at the 1.5R level and let the R:R speak.
+  target = Math.max(target, price + 1.5 * risk);
+  const entryLow = Math.max(stop + 0.5 * atr, price - 0.75 * atr, support ?? 0);
+  return {
+    entry: { low: Math.min(entryLow, price), high: price },
+    target,
+    stop,
+    riskReward: (target - price) / risk,
+  };
+}
+
+/** Risk-based size: lose `riskPerTradePercent` of the portfolio if the stop is hit. */
+export function positionSize(price: number, stop: number, sizing: SizingInput, multiplier: number) {
+  const stopDistance = (price - stop) / price;
+  if (stopDistance <= 0 || sizing.portfolioValue <= 0) return null;
+  const allocation = Math.min(sizing.maxPositionPercent, (sizing.riskPerTradePercent / 100 / stopDistance) * 100) * multiplier;
+  const amount = Math.min((allocation / 100) * sizing.portfolioValue, sizing.cash);
+  return { allocationPercent: allocation, amount: Math.max(0, amount) };
+}
+
+export function decide(input: EngineInput, regime: Regime, sizing: SizingInput): Recommendation {
+  const { row, daily, holding } = input;
+  const price = daily.price;
+  const factors = buildFactors(input);
+  // Regime tilts every score a little: a rising tide lifts most coins and vice versa.
+  const score = clamp(combine(factors) + Math.round(regime.score * 4), -100, 100);
+  const confidence = Math.round(clamp(50 + Math.abs(score) * 0.4, 50, 85));
+  const levels = tradeLevels(daily);
+  const atr = daily.atr14 ?? price * 0.03;
+
+  const reasonsFor = factors.filter((f) => f.score > 0).sort((a, b) => b.score * b.weight - a.score * a.weight).map((f) => `${f.name}: ${f.note}`);
+  const reasonsAgainst = factors.filter((f) => f.score < 0).sort((a, b) => a.score * a.weight - b.score * b.weight).map((f) => `${f.name}: ${f.note}`);
+
+  let action: AutopilotAction;
+  let entry = levels?.entry ?? null;
+  let timing: Timing = "none";
+  let timingNote = "";
+  let sellPercent: number | null = null;
+  let size: { allocationPercent: number; amount: number } | null = null;
+  let holdingView: Recommendation["holding"] = null;
+
+  if (holding && holding.quantity > 0) {
+    const marketValue = holding.quantity * price;
+    const pnlPercent = holding.averageCost > 0 ? (price / holding.averageCost - 1) * 100 : 0;
+    holdingView = { quantity: holding.quantity, averageCost: holding.averageCost, marketValue, pnlPercent };
+    const allocation = sizing.portfolioValue > 0 ? (marketValue / sizing.portfolioValue) * 100 : 0;
+    const brokeDown = daily.ema50 !== null && daily.ema200 !== null && price < daily.ema50 && daily.ema50 < daily.ema200;
+
+    if (score <= -35 || (brokeDown && score < -10)) {
+      action = "SELL";
+      sellPercent = 100;
+      timing = "exit_now";
+      timingNote = brokeDown ? "Trend has broken down (price below a falling 50-day). Exit, or sell into the next bounce." : "Most evidence has turned against this position.";
+    } else if (score <= -12 || (pnlPercent >= 40 && score < 15) || allocation > sizing.maxPositionPercent * 1.5) {
+      action = "TRIM";
+      sellPercent = allocation > sizing.maxPositionPercent * 1.5 ? Math.round((1 - sizing.maxPositionPercent / allocation) * 100) : pnlPercent >= 40 ? 33 : 50;
+      timing = (daily.rsi14 ?? 50) < 40 ? "on_bounce" : "now";
+      timingNote =
+        allocation > sizing.maxPositionPercent * 1.5
+          ? `Position is ${allocation.toFixed(0)}% of the portfolio — reduce concentration.`
+          : pnlPercent >= 40
+            ? `Up ${pnlPercent.toFixed(0)}% with fading evidence: lock in part of the gain.`
+            : timing === "on_bounce"
+              ? "Oversold right now — trim into the next bounce rather than at the low."
+              : "Evidence is weakening: reduce exposure.";
+    } else if (score >= 40 && allocation < sizing.maxPositionPercent && levels) {
+      action = "ADD";
+      size = positionSize(price, levels.stop, { ...sizing, maxPositionPercent: sizing.maxPositionPercent - allocation }, regime.sizeMultiplier);
+      timing = (daily.rsi14 ?? 50) > 70 ? "wait_for_pullback" : "now";
+      timingNote = timing === "now" ? "Setup still strong and the position is below its size limit." : `Strong but stretched — add near ${fmt(levels.entry.low)}.`;
+    } else {
+      action = "HOLD";
+      timingNote = levels ? `Keep a stop near ${fmt(levels.stop)}; re-check if price closes below it.` : "No change suggested.";
+    }
+  } else if (score >= 35 && levels && levels.riskReward >= 1.5 && regime.mode !== "risk_off") {
+    action = "BUY";
+    size = positionSize(price, levels.stop, sizing, regime.sizeMultiplier * (score >= 55 ? 1 : 0.7));
+    const stretched = (daily.rsi14 ?? 50) > 70 || (daily.ema20 !== null && price > daily.ema20 + 2 * atr);
+    const nearHigh = row.high90d !== null && price < row.high90d && price >= row.high90d * 0.97;
+    if (stretched) {
+      // Wait for a real pullback: the zone sits around the 20-day average, not just under the price.
+      const pull = daily.ema20 ?? price - atr;
+      const high = Math.min(price - 0.5 * atr, Math.max(pull, price - 1.5 * atr));
+      const low = Math.max(levels.stop + 0.5 * atr, Math.min(high, pull) - 0.5 * atr);
+      entry = { low: Math.min(low, high), high };
+      timing = "wait_for_pullback";
+      timingNote = `Stretched above its averages — place a limit order in the entry zone (${fmt(entry.low)}–${fmt(entry.high)}) instead of chasing.`;
+    } else if (nearHigh) {
+      timing = "on_breakout";
+      timingNote = `Just under the 90-day high (${fmt(row.high90d!)}). Buy on a daily close above it; a rejection there is a common failure point.`;
+    } else {
+      timing = "now";
+      timingNote = "Price is in the entry zone and the setup is confirmed.";
+    }
+  } else if (score >= 15) {
+    action = "WATCH";
+    timingNote =
+      regime.mode === "risk_off" && score >= 35
+        ? "Good setup, but the overall market is risk-off — wait for BTC to recover first."
+        : levels && levels.riskReward < 1.5
+          ? "Constructive, but the reward/risk to the next resistance is poor right now."
+          : "Promising but not confirmed — wait for more signals to agree.";
+  } else if (score > -15) {
+    action = "NEUTRAL";
+    timingNote = "No edge either way right now.";
+  } else {
+    action = "AVOID";
+    timingNote = score <= -35 ? "Evidence points down. Not a buy; a short-term bearish call is recorded." : "More evidence against than for — stay out.";
+  }
+
+  return {
+    symbol: row.symbol,
+    baseAsset: row.baseAsset,
+    name: row.name,
+    price,
+    action,
+    score,
+    confidence,
+    timing,
+    timingNote,
+    entry: levels && (action === "BUY" || action === "ADD" || action === "WATCH") ? entry : null,
+    target: levels && !NO_LEVELS.includes(action) ? levels.target : null,
+    stop: levels && !NO_LEVELS.includes(action) ? levels.stop : null,
+    riskReward: levels && !NO_LEVELS.includes(action) ? levels.riskReward : null,
+    suggestedAmount: size ? size.amount : holdingView && sellPercent !== null ? (holdingView.marketValue * sellPercent) / 100 : null,
+    suggestedAllocationPercent: size ? size.allocationPercent : null,
+    sellPercent,
+    factors,
+    reasonsFor,
+    reasonsAgainst,
+    signals: row.signals,
+    cautions: row.cautions,
+    holding: holdingView,
+  };
+}
+
+const NO_LEVELS: AutopilotAction[] = ["SELL", "AVOID", "NEUTRAL"];
+
+function fmt(n: number) {
+  const abs = Math.abs(n);
+  return n.toLocaleString("en-US", { maximumFractionDigits: abs >= 1000 ? 0 : abs >= 1 ? 3 : 6 });
+}
+
+/** Cheap pre-rank over the whole scan, to pick which pairs get the full (network-heavy) analysis. */
+export function preScore(row: DiscoveryRow): number {
+  let s = row.signals.filter((x) => BULLISH_SIGNALS.includes(x)).length * 15;
+  if (row.vsBtc30d !== null) s += clamp(row.vsBtc30d, -30, 30) * 0.5;
+  if (row.rsi14 !== null) s += row.rsi14 >= 50 && row.rsi14 <= 70 ? 8 : row.rsi14 > 75 ? -8 : 0;
+  if (row.sma50 !== null && row.sma200 !== null) s += row.sma50 > row.sma200 ? 8 : -5;
+  s -= row.cautions.length * 12;
+  return s;
+}

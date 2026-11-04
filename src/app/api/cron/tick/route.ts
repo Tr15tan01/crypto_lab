@@ -7,6 +7,7 @@ import { evaluateAlerts } from "@/services/alerts/alerts-service";
 import { maybeCreateScheduledSnapshot } from "@/services/portfolio/snapshots";
 import { evaluateDueResearch } from "@/services/research/research-service";
 import { evaluateDuePredictions } from "@/services/predictions/prediction-service";
+import { syncDueTraders } from "@/services/traders/trader-service";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -22,7 +23,7 @@ function authorized(req: NextRequest): boolean {
 
 /**
  * Scheduled maintenance (Vercel Cron or any external scheduler):
- * portfolio snapshot (if due), alert evaluation, AI prediction evaluation.
+ * portfolio snapshot (if due), alert evaluation, AI prediction evaluation, tracked-trader sync.
  * Protected by CRON_SECRET; disabled when the secret is not set.
  */
 export async function GET(req: NextRequest) {
@@ -54,5 +55,6 @@ export async function GET(req: NextRequest) {
   await run("alerts", () => evaluateAlerts(userId, { force: true }));
   await run("research_evaluation", () => evaluateDueResearch(userId, 20));
   await run("prediction_evaluation", () => evaluateDuePredictions(userId, 20));
+  await run("trader_sync", () => syncDueTraders(userId, 5));
   return NextResponse.json({ data: result });
 }

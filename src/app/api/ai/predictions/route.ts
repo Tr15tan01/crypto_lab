@@ -10,5 +10,5 @@ export const maxDuration = 60;
 export const GET = withApi(async ({ user }) => {
   const scored = await evaluateDuePredictions(user.id, 3).catch(() => 0);
   if (scored === 3) after(() => evaluateDuePredictions(user.id, 10).catch(() => 0));
-  return serialize(await getTrackRecord(user.id));
+  return serialize(await getTrackRecord(user.id, { source: "chat" }));
 });

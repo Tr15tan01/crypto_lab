@@ -9,6 +9,9 @@ export const DISCOVERY_SIGNALS = [
   "golden_cross",
   "oversold_bounce",
   "breakout",
+  "volatility_squeeze",
+  "trend_pullback",
+  "accumulation",
 ] as const;
 export type DiscoverySignal = (typeof DISCOVERY_SIGNALS)[number];
 
@@ -29,6 +32,16 @@ export const THRESHOLDS = {
   bounceLookbackDays: 10,
   /** "Breakout": price above the highest high of this many closed daily candles. */
   breakoutDays: 90,
+  /** "Volatility squeeze": Bollinger bandwidth in the lowest `squeezePercentile`% of the last `squeezeLookbackDays`. */
+  squeezeLookbackDays: 120,
+  squeezePercentile: 10,
+  /** "Trend pullback": 50-day above 200-day, price above the 200-day, RSI(14) dipped into this band. */
+  pullbackRsiLow: 35,
+  pullbackRsiHigh: 48,
+  /** "Accumulation": 20-day on-balance volume flow ≥ this share of 20-day volume while price moved < `accumulationMaxMovePercent`. */
+  accumulationDays: 20,
+  accumulationFlow: 0.2,
+  accumulationMaxMovePercent: 6,
   /** Below this 24h quote volume (USDT) a pair is flagged as thinly traded. */
   thinLiquidity: 500_000,
 } as const;
@@ -57,5 +70,17 @@ export const SIGNAL_INFO: Record<DiscoverySignal, { label: string; description: 
   breakout: {
     label: `${THRESHOLDS.breakoutDays}-day high`,
     description: `Price is above the highest high of the previous ${THRESHOLDS.breakoutDays} daily candles.`,
+  },
+  volatility_squeeze: {
+    label: "Volatility squeeze",
+    description: `Bollinger Band width is in the narrowest ${THRESHOLDS.squeezePercentile}% of the last ${THRESHOLDS.squeezeLookbackDays} days. Quiet periods often end in a large move (direction unknown).`,
+  },
+  trend_pullback: {
+    label: "Trend pullback",
+    description: `Long-term uptrend (50-day above 200-day, price above the 200-day) with RSI(14) dipping to ${THRESHOLDS.pullbackRsiLow}–${THRESHOLDS.pullbackRsiHigh}: a dip inside an uptrend.`,
+  },
+  accumulation: {
+    label: "Accumulation",
+    description: `On-balance volume rose strongly over ${THRESHOLDS.accumulationDays} days while the price moved less than ${THRESHOLDS.accumulationMaxMovePercent}%: buying volume without a price move yet.`,
   },
 };

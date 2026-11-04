@@ -94,7 +94,7 @@ export function TrackRecord({ refreshKey }: { refreshKey: number }) {
         <ul className="mt-2 space-y-1">
           {data.recent.map((p) => (
             <li key={p._id}>
-              <Link href={`/research?c=${p.conversationId}`} className="flex items-center justify-between gap-2 rounded px-1 py-0.5 text-[11px] hover:bg-surface-2">
+              <Link href={p.conversationId ? `/research?c=${p.conversationId}` : "/autopilot"} className="flex items-center justify-between gap-2 rounded px-1 py-0.5 text-[11px] hover:bg-surface-2">
                 <span className="min-w-0 truncate">
                   <span className={cn(p.bias === "bullish" ? "text-up" : p.bias === "bearish" ? "text-down" : "text-muted")}>{ARROW[p.bias]}</span>{" "}
                   {p.symbol.replace(/USDT$/, "")} <span className="text-faint">{p.confidence}% · {p.horizon} · {formatRelative(p.timestamp)}</span>

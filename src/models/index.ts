@@ -242,14 +242,17 @@ export interface AIResearchDoc {
 export type PredictionHorizon = Exclude<ResearchEvaluation["horizon"], "1h">;
 
 /**
- * A directional call the chat assistant made about one pair. Stored separately from the message
- * so the AI's track record survives conversation deletion and cannot be cherry-picked.
+ * A directional call about one pair, made by the chat assistant or by Autopilot. Stored on its
+ * own so the track record survives conversation deletion and cannot be cherry-picked.
  */
 export interface PredictionDoc {
   _id: ObjectId;
   userId: string;
-  conversationId: ObjectId;
-  messageId: ObjectId;
+  /** Missing on documents created before Autopilot existed: those are chat calls. */
+  source?: "chat" | "autopilot";
+  /** Chat calls only. */
+  conversationId: ObjectId | null;
+  messageId: ObjectId | null;
   symbol: string;
   provider: string;
   model: string;
@@ -268,6 +271,66 @@ export interface PredictionDoc {
   /** When the horizon ends and the call can be scored. */
   dueAt: Date;
   evaluation: (ResearchEvaluation & { levelHit: "target" | "stop" | "none" | null }) | null;
+}
+
+/** A trader the user follows: imported from Binance copy trading or tracked by hand. */
+export interface TraderDoc {
+  _id: ObjectId;
+  userId: string;
+  source: "binance_copy" | "manual";
+  /** Binance lead-portfolio id; null for manual traders. */
+  externalId: string | null;
+  name: string;
+  profileUrl: string | null;
+  avatarUrl: string | null;
+  /** Manual: entered by the user. Binance: implied from 90-day P&L ÷ ROI unless overridden. */
+  startingValue: number | null;
+  startingValueSource: "user" | "implied" | null;
+  quoteAsset: string;
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  lastSyncedAt: Date | null;
+  lastSyncError: string | null;
+  /** Latest data pulled from Binance (binance_copy only). */
+  remote: {
+    status: string | null;
+    description: string | null;
+    tags: string[];
+    startedAt: Date | null;
+    marginBalance: number | null;
+    copiers: number | null;
+    roiSeries: Array<{ t: number; roi: number }>;
+    performance: Array<{
+      range: "7D" | "30D" | "90D";
+      roiPercent: number | null;
+      pnl: number | null;
+      maxDrawdownPercent: number | null;
+      winRatePercent: number | null;
+      totalOrders: number | null;
+    }>;
+    coinMix: Array<{ asset: string; sharePercent: number }>;
+  } | null;
+}
+
+export interface TraderTradeDoc {
+  _id: ObjectId;
+  userId: string;
+  traderId: ObjectId;
+  /** Binance position id (dedupes re-syncs); null for manual entries. */
+  externalId: string | null;
+  symbol: string;
+  side: "long" | "short";
+  leverage: number | null;
+  quantity: number | null;
+  entryPrice: number;
+  exitPrice: number | null;
+  openedAt: Date;
+  closedAt: Date | null;
+  pnl: number | null;
+  status: "open" | "partial" | "closed";
+  source: "binance_copy" | "manual" | "csv";
+  createdAt: Date;
 }
 
 /** An AI review of discovery-screen candidates. Stores the exact data the AI was given. */

@@ -17,6 +17,8 @@ import type {
   PortfolioDoc,
   PortfolioSnapshotDoc,
   PredictionDoc,
+  TraderDoc,
+  TraderTradeDoc,
   RateLimitDoc,
   TransactionDoc,
   UserDoc,
@@ -38,6 +40,8 @@ export const COLLECTIONS = {
   aiResearch: "ai_research",
   discoveryShortlists: "discovery_shortlists",
   predictions: "ai_predictions",
+  traders: "traders",
+  traderTrades: "trader_trades",
   decisionJournal: "decision_journal",
   alerts: "alerts",
   notifications: "notifications",
@@ -60,6 +64,8 @@ export interface Collections {
   aiResearch: Collection<AIResearchDoc>;
   discoveryShortlists: Collection<DiscoveryShortlistDoc>;
   predictions: Collection<PredictionDoc>;
+  traders: Collection<TraderDoc>;
+  traderTrades: Collection<TraderTradeDoc>;
   decisionJournal: Collection<DecisionJournalDoc>;
   alerts: Collection<AlertDoc>;
   notifications: Collection<NotificationDoc>;
@@ -108,6 +114,17 @@ export async function ensureIndexes(db: Db): Promise<void> {
     c(COLLECTIONS.predictions).createIndex({ userId: 1, symbol: 1, timestamp: -1 }),
     c(COLLECTIONS.predictions).createIndex({ conversationId: 1 }),
     c(COLLECTIONS.predictions).createIndex({ userId: 1, evaluation: 1, dueAt: 1 }),
+    c(COLLECTIONS.predictions).createIndex({ userId: 1, source: 1, timestamp: -1 }),
+    c(COLLECTIONS.traders).createIndex({ userId: 1, createdAt: -1 }),
+    c(COLLECTIONS.traders).createIndex(
+      { userId: 1, externalId: 1 },
+      { unique: true, partialFilterExpression: { externalId: { $type: "string" } }, name: "uniq_external_trader" },
+    ),
+    c(COLLECTIONS.traderTrades).createIndex({ traderId: 1, openedAt: -1 }),
+    c(COLLECTIONS.traderTrades).createIndex(
+      { traderId: 1, externalId: 1 },
+      { unique: true, partialFilterExpression: { externalId: { $type: "string" } }, name: "uniq_external_trade" },
+    ),
 
     c(COLLECTIONS.decisionJournal).createIndex({ userId: 1, timestamp: -1 }),
     c(COLLECTIONS.decisionJournal).createIndex({ userId: 1, symbol: 1, timestamp: -1 }),
@@ -143,6 +160,8 @@ export async function getCollections(): Promise<Collections> {
     aiResearch: db.collection<AIResearchDoc>(COLLECTIONS.aiResearch),
     discoveryShortlists: db.collection<DiscoveryShortlistDoc>(COLLECTIONS.discoveryShortlists),
     predictions: db.collection<PredictionDoc>(COLLECTIONS.predictions),
+    traders: db.collection<TraderDoc>(COLLECTIONS.traders),
+    traderTrades: db.collection<TraderTradeDoc>(COLLECTIONS.traderTrades),
     decisionJournal: db.collection<DecisionJournalDoc>(COLLECTIONS.decisionJournal),
     alerts: db.collection<AlertDoc>(COLLECTIONS.alerts),
     notifications: db.collection<NotificationDoc>(COLLECTIONS.notifications),

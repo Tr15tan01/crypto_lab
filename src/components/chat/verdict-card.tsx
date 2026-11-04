@@ -7,8 +7,9 @@ import { cn, formatDateTime, formatPercent, formatPrice } from "@/lib/utils/form
 
 export interface Prediction {
   _id: string;
-  conversationId: string;
-  messageId: string;
+  source?: "chat" | "autopilot";
+  conversationId: string | null;
+  messageId: string | null;
   symbol: string;
   bias: "bullish" | "neutral" | "bearish";
   confidence: number;

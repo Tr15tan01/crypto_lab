@@ -33,6 +33,7 @@ export async function recordPredictions(
     docs.push({
       _id: new ObjectId(),
       userId,
+      source: "chat",
       conversationId: meta.conversationId,
       messageId: meta.messageId,
       symbol,
@@ -92,10 +93,67 @@ export async function evaluateDuePredictions(userId: string, max = 10): Promise<
   return scored;
 }
 
-export async function getTrackRecord(userId: string, opts: { symbol?: string; limit?: number } = {}) {
+export interface AutopilotCall {
+  symbol: string;
+  bias: "bullish" | "bearish";
+  confidence: number;
+  price: number;
+  target: number | null;
+  stop: number | null;
+  score: number;
+}
+
+/**
+ * Records Autopilot's actionable calls. At most one pending call per pair, so refreshing the
+ * page does not stack duplicate predictions; the next call is recorded once the last is scored.
+ */
+export async function recordAutopilotCalls(userId: string, calls: AutopilotCall[], dataTimestamp: Date): Promise<number> {
+  if (!calls.length) return 0;
   const { predictions } = await getCollections();
+  const pending = new Set(
+    (
+      await predictions
+        .find({ userId, source: "autopilot", evaluation: null, symbol: { $in: calls.map((c) => c.symbol) } }, { projection: { symbol: 1 } })
+        .toArray()
+    ).map((p) => p.symbol),
+  );
+  const now = new Date();
+  const docs: PredictionDoc[] = calls
+    .filter((c) => !pending.has(c.symbol))
+    .map((c) => {
+      const o = sanitizeLevels({ bias: c.bias, entry: null, target: c.target, stop: c.stop }, c.price);
+      return {
+        _id: new ObjectId(),
+        userId,
+        source: "autopilot",
+        conversationId: null,
+        messageId: null,
+        symbol: c.symbol,
+        provider: "autopilot",
+        model: "rules-v1",
+        bias: c.bias,
+        confidence: Math.round(Math.min(95, Math.max(50, c.confidence))),
+        horizon: "7d",
+        priceAtPrediction: c.price,
+        dataTimestamp,
+        entry: null,
+        target: o.target,
+        stop: o.stop,
+        compositeScore: c.score,
+        timestamp: now,
+        dueAt: new Date(now.getTime() + HORIZONS["7d"].ms),
+        evaluation: null,
+      };
+    });
+  if (docs.length) await predictions.insertMany(docs);
+  return docs.length;
+}
+
+export async function getTrackRecord(userId: string, opts: { symbol?: string; limit?: number; source?: "chat" | "autopilot" } = {}) {
+  const { predictions } = await getCollections();
+  const sourceFilter = opts.source === "autopilot" ? { source: "autopilot" as const } : opts.source === "chat" ? { source: { $ne: "autopilot" as const } } : {};
   const list = await predictions
-    .find({ userId, ...(opts.symbol ? { symbol: opts.symbol } : {}) })
+    .find({ userId, ...sourceFilter, ...(opts.symbol ? { symbol: opts.symbol } : {}) })
     .sort({ timestamp: -1 })
     .limit(Math.min(opts.limit ?? 200, 500))
     .toArray();

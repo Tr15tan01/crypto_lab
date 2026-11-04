@@ -58,6 +58,12 @@ const authSchema = z
 const appSchema = z.object({
   BINANCE_API_BASE: z.url().default("https://data-api.binance.vision"),
   BINANCE_REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60000).default(8000),
+  /** USD-M futures public data (funding, open interest, long/short ratios). Optional signal layer. */
+  BINANCE_FUTURES_API_BASE: z.url().default("https://fapi.binance.com"),
+  /** binance.com web endpoints behind the copy-trading pages (unofficial, best effort). */
+  BINANCE_WEB_BASE: z.url().default("https://www.binance.com"),
+  /** Fear & Greed index (alternative.me). Set to "off" to disable. */
+  FEAR_GREED_URL: z.string().default("https://api.alternative.me/fng/?limit=8"),
   MARKET_TICKER_TTL_SECONDS: z.coerce.number().int().min(5).max(600).default(20),
   ALERT_POLL_INTERVAL_SECONDS: z.coerce.number().int().min(15).max(3600).default(60),
   SNAPSHOT_INTERVAL_MINUTES: z.coerce.number().int().min(5).max(1440).default(60),

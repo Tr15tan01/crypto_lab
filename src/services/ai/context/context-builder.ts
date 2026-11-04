@@ -6,6 +6,7 @@ import { summarizeIndicators } from "@/services/indicators/summary";
 import { buildScorecard } from "@/services/indicators/scorecard";
 import { summarizeTrackRecord } from "@/services/predictions/scoring";
 import type { PricedSymbol } from "@/services/predictions/prediction-service";
+import { derivatives, fearGreed, orderBook, smartMoney, type SmartMoney } from "@/services/signals/market-intel";
 import { getPortfolioState } from "@/services/portfolio/portfolio-service";
 import { scenarioImpact } from "@/services/portfolio/valuation";
 import type { Kline } from "@/services/binance/schemas";
@@ -124,10 +125,12 @@ export async function buildChatContext(
   // Shared inputs for the per-asset forecasting data: BTC as the benchmark and the AI's own record.
   let btcDaily: Kline[] | null = null;
   let pastCalls: PredictionDoc[] = [];
+  let smart: SmartMoney | null = null;
   if (symbols.length) {
-    [btcDaily, pastCalls] = await Promise.all([
+    [btcDaily, pastCalls, smart] = await Promise.all([
       md.klines("BTCUSDT", "1d", "1y").then((r) => r.data).catch(() => null),
-      predictions.find({ userId }).sort({ timestamp: -1 }).limit(200).toArray(),
+      predictions.find({ userId, source: { $ne: "autopilot" } }).sort({ timestamp: -1 }).limit(200).toArray(),
+      smartMoney(),
     ]);
   }
   if (pastCalls.length) {
@@ -144,12 +147,42 @@ export async function buildChatContext(
     const entry: Record<string, unknown> = { asset: t.baseAsset, ...tickerFacts(t) };
     if (tickersStale) entry.dataWarning = "STALE price data";
 
-    const [daily, first, symbolInfo, fourHour] = await Promise.allSettled([
+    const [daily, first, symbolInfo, fourHour, deriv, book] = await Promise.allSettled([
       md.klines(t.symbol, "1d", "1y"),
       md.firstCandle(t.symbol),
       md.symbolInfo(t.symbol),
       md.klines(t.symbol, "4h", "90d"),
+      derivatives(t.symbol),
+      orderBook(t.symbol),
     ]);
+    if (deriv.status === "fulfilled" && deriv.value) {
+      const d = deriv.value;
+      entry.futuresPositioning = {
+        note: "Binance USD-M perpetual data. Funding % per 8h (positive = longs pay shorts). Extremes are often contrarian.",
+        fundingRatePercent: round(d.fundingRatePercent, 4),
+        openInterestChange1dPercent: round(d.openInterestChange1dPercent, 4),
+        openInterestChange7dPercent: round(d.openInterestChange7dPercent, 4),
+        longAccountsPercent: round(d.longAccountsPercent, 4),
+        topTraderLongShortRatio: round(d.topTraderLongShortRatio, 4),
+        takerBuySellRatio: round(d.takerBuySellRatio, 4),
+      };
+      included.push(`${t.baseAsset} futures positioning`);
+    }
+    if (book.status === "fulfilled" && book.value) {
+      entry.orderBook = {
+        note: "Spot order book within ±2% of mid. imbalance +1 = only bids, -1 = only asks.",
+        imbalance: round(book.value.imbalance, 3),
+        spreadPercent: round(book.value.spreadPercent, 4),
+        depthQuote2Percent: round(book.value.depthQuote2Percent, 4),
+      };
+    }
+    const sm = smart?.entries.find((e) => e.symbol === t.symbol);
+    if (smart && sm) {
+      entry.topCopyTraders = {
+        note: `Positions opened in the last ${smart.window} by ${smart.tradersSampled} top Binance futures lead traders (by 90d P&L). A crowd signal, leveraged traders.`,
+        ...sm,
+      };
+    }
     let compositeScore: number | null = null;
     if (symbolInfo.status === "fulfilled") {
       entry.binanceStatus = symbolInfo.value.data?.status ?? "not listed";
@@ -316,7 +349,9 @@ export async function buildChatContext(
     const o = buildOverview(tickers, "USDT");
     const btc = usdt.find((t) => t.symbol === "BTCUSDT");
     const btcSummary = btcDaily && btcDaily.length > 50 && btc ? summarizeIndicators(btcDaily, "1d", btc.price) : null;
+    const fng = await fearGreed();
     ctx.marketBackdrop = {
+      fearGreedIndex: fng ? { value: fng.value, label: fng.label, weekAgo: fng.weekAgo, at: iso(fng.at) } : null,
       breadth: `${o.advancers} advancers / ${o.decliners} decliners among ${o.liquidPairCount} liquid USDT pairs`,
       medianChange24hPercent: round(o.medianChangePercent, 4),
       btc: btc

@@ -3,7 +3,9 @@
 A private, single-user research lab for Binance Spot cryptocurrencies:
 
 - **Market Scanner** — every tradable Binance Spot pair, searchable, filterable and sortable.
-- **Discovery** (`/discover`) — screens over the ~300 most liquid USDT pairs: new listings (by first Binance trading data), unusual volume vs the 30-day median, strength vs BTC over 7/30 days, golden crosses, oversold bounces and 90-day highs, with risk cautions and an AI shortlist review that argues for and against each candidate (never a buy recommendation). The scan is cached for 15 minutes.
+- **Discovery** (`/discover`) — screens over the ~300 most liquid USDT pairs: new listings (by first Binance trading data), unusual volume vs the 30-day median, strength vs BTC over 7/30 days, golden crosses, oversold bounces, 90-day highs, volatility squeezes, dips inside uptrends and volume accumulation, with risk cautions and an AI shortlist review that argues for and against each candidate (never a buy recommendation). The scan is cached for 15 minutes.
+- **Autopilot** (`/autopilot`) — a rules engine that turns the scan into a plan for the paper portfolio: buy / watch / avoid for new coins and hold / add / trim / sell for positions, with timing, entry zone, target, stop, reward/risk and a risk-based position size. Inputs: trend, momentum, strength vs BTC, discovery signals, historical base rates, futures positioning (funding, open interest, long/short and taker ratios), order-book imbalance, what top copy traders opened, Fear & Greed and the market regime. Buttons open the normal simulated trade dialog; actionable calls are scored after 7 days.
+- **Top Traders** (`/traders`) — discover Binance Futures copy-trading leaders (ROI, profit, implied starting capital, drawdown, win rate, copier P&L) and track them, or track anyone manually with logged or CSV-imported trades. Per trader: starting value, daily/weekly returns, monthly ROI, max drawdown, coins bought and sold, entry/exit prices, holding times, and whether the strategy is changing. Binance data comes from unofficial binance.com endpoints (best effort).
 - **Guide** (`/guide`) — in-app instructions: a research workflow, how each screen works and its pitfalls, and what every page does.
 - **Coin pages** (`/crypto/BTCUSDT`) — live price, candlestick/line charts (1m → 1w, 24h → all history), EMA/Bollinger overlays, deterministic indicators, listing status, alerts, notes.
 - **Watchlist** — reasons, notes, target prices, personal ranking, performance since added; removed entries are kept.
@@ -71,7 +73,7 @@ Atlas is required (or any replica set): trades are written in **MongoDB multi-do
 
 ### Collections
 
-`users`, `user_settings`, `watchlist`, `portfolios`, `holdings`, `transactions`, `portfolio_snapshots`, `market_snapshots`, `conversations`, `messages`, `ai_research`, `discovery_shortlists`, `ai_predictions`, `decision_journal`, `alerts`, `notifications`, `rate_limits` (TTL), `market_cache`, `job_state`. Schemas are in `src/models/index.ts`; indexes in `src/lib/mongodb/collections.ts`.
+`users`, `user_settings`, `watchlist`, `portfolios`, `holdings`, `transactions`, `portfolio_snapshots`, `market_snapshots`, `conversations`, `messages`, `ai_research`, `discovery_shortlists`, `ai_predictions`, `traders`, `trader_trades`, `decision_journal`, `alerts`, `notifications`, `rate_limits` (TTL), `market_cache`, `job_state`. Schemas are in `src/models/index.ts`; indexes in `src/lib/mongodb/collections.ts`.
 
 ## Authentication
 
