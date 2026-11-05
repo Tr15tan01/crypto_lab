@@ -75,7 +75,7 @@ function visibleStreamingText(text: string) {
 function ContextChip({ ctx, provider, model }: { ctx?: ContextSummary; provider?: string; model?: string }) {
   if (!ctx && !provider) return null;
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10.5px] text-faint">
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[0.65625rem] text-faint">
       {provider ? <span>{provider} · {model}</span> : null}
       {ctx?.dataTimestamp ? <span>· market data {formatDateTime(ctx.dataTimestamp)}</span> : null}
       {ctx?.included.length ? (
@@ -345,7 +345,7 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
                     >
                       <button type="button" onClick={() => select(c._id)} className="min-w-0 flex-1 text-left">
                         <span className="block truncate">{c.title}</span>
-                        <span className="block text-[10px] text-faint">
+                        <span className="block text-[0.625rem] text-faint">
                           {c.focusSymbol ? `${c.focusSymbol} · ` : ""}{formatRelative(c.updatedAt)}
                         </span>
                       </button>
@@ -419,7 +419,7 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
               {messages.map((m) =>
                 m.role === "user" ? (
                   <div key={m._id} className="flex justify-end">
-                    <div className="max-w-[85%] rounded-lg rounded-br-sm bg-surface-3 px-3.5 py-2 text-[13.5px] whitespace-pre-wrap">{m.content}</div>
+                    <div className="max-w-[85%] rounded-lg rounded-br-sm bg-surface-3 px-3.5 py-2 text-[0.84375rem] whitespace-pre-wrap">{m.content}</div>
                   </div>
                 ) : (
                   <div key={m._id} className="animate-fade-in">
@@ -473,7 +473,7 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
         </div>
 
         <form
-          className="flex flex-wrap items-center gap-1.5 border-t border-border px-3 pt-2.5 text-[11px] text-muted"
+          className="flex flex-wrap items-center gap-1.5 border-t border-border px-3 pt-2.5 text-[0.6875rem] text-muted"
           onSubmit={(e) => e.preventDefault()}
           aria-label="Quick verdict"
         >
@@ -485,7 +485,7 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
             placeholder={focus?.replace(/USDT$/, "") ?? "SOL"}
             maxLength={20}
             aria-label="Coin for a quick verdict"
-            className="h-6 w-20 px-1.5 text-[11px] uppercase"
+            className="h-6 w-20 px-1.5 text-[0.6875rem] uppercase"
           />
           {HORIZONS.map((h) => {
             const coin = verdictCoin.trim() || focus?.replace(/USDT$/, "") || "";
@@ -527,7 +527,7 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
               placeholder={focus ? `Ask about ${focus}…` : "Ask a research question…"}
               aria-label="Message"
               disabled={!aiConfigured}
-              className="max-h-40 min-h-11 flex-1 resize-y rounded-md border border-border-strong bg-bg px-3 py-2 text-[13.5px] placeholder:text-faint focus:border-accent/60 focus:outline-none disabled:opacity-50"
+              className="max-h-40 min-h-11 flex-1 resize-y rounded-md border border-border-strong bg-bg px-3 py-2 text-[0.84375rem] placeholder:text-faint focus:border-accent/60 focus:outline-none disabled:opacity-50"
             />
             {busy ? (
               <Button variant="secondary" size="lg" onClick={() => abortRef.current?.abort()} aria-label="Stop generating">
@@ -539,7 +539,7 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
               </Button>
             )}
           </div>
-          <p className="mt-1.5 text-[10.5px] text-faint">Enter to send · Shift+Enter for a new line · Only the data relevant to your question is shared with the AI provider.</p>
+          <p className="mt-1.5 text-[0.65625rem] text-faint">Enter to send · Shift+Enter for a new line · Only the data relevant to your question is shared with the AI provider.</p>
         </form>
       </section>
     </div>

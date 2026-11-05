@@ -7,8 +7,8 @@ type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "up" | "down
 type ButtonSize = "sm" | "md" | "lg" | "icon";
 
 const variantClass: Record<ButtonVariant, string> = {
-  primary: "bg-accent text-accent-fg hover:bg-[#e8c06a] font-medium",
-  secondary: "bg-surface-3 text-fg border border-border-strong hover:bg-[#222730]",
+  primary: "bg-accent text-accent-fg hover:bg-accent/85 font-medium",
+  secondary: "bg-surface-3 text-fg border border-border-strong hover:bg-border-strong",
   ghost: "text-muted hover:text-fg hover:bg-surface-3",
   danger: "bg-down/15 text-down border border-down/30 hover:bg-down/25",
   up: "bg-up text-[#04140d] hover:bg-[#3fd29b] font-medium",
@@ -17,7 +17,7 @@ const variantClass: Record<ButtonVariant, string> = {
 
 const sizeClass: Record<ButtonSize, string> = {
   sm: "h-7 px-2.5 text-xs gap-1.5",
-  md: "h-8 px-3 text-[13px] gap-2",
+  md: "h-8 px-3 text-[0.8125rem] gap-2",
   lg: "h-10 px-4 text-sm gap-2",
   icon: "h-8 w-8 justify-center",
 };
@@ -82,7 +82,7 @@ export function PanelHeader({
   return (
     <header className={cn("flex items-start justify-between gap-3 border-b border-border px-4 py-3", className)}>
       <div className="min-w-0">
-        <h2 className="text-[13px] font-semibold tracking-tight text-fg">{title}</h2>
+        <h2 className="text-[0.8125rem] font-semibold tracking-tight text-fg">{title}</h2>
         {description ? <p className="mt-0.5 text-xs text-muted">{description}</p> : null}
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
@@ -115,7 +115,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-sm border px-1.5 py-px text-[11px] font-medium leading-4 whitespace-nowrap",
+        "inline-flex items-center gap-1 rounded-sm border px-1.5 py-px text-[0.6875rem] font-medium leading-4 whitespace-nowrap",
         badgeTone[tone],
         className,
       )}
@@ -127,7 +127,7 @@ export function Badge({
 /* ───────────────────────── Form fields ───────────────────────── */
 
 const fieldBase =
-  "w-full rounded-md border border-border-strong bg-bg px-2.5 text-[13px] text-fg placeholder:text-faint " +
+  "w-full rounded-md border border-border-strong bg-bg px-2.5 text-[0.8125rem] text-fg placeholder:text-faint " +
   "transition-colors focus:border-accent/60 focus:outline-none disabled:opacity-60 aria-[invalid=true]:border-down/60";
 
 export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
@@ -206,7 +206,7 @@ export function EmptyState({
   return (
     <div className={cn("flex flex-col items-center justify-center gap-2 px-6 py-10 text-center", className)}>
       {icon ? <div className="mb-1 text-faint">{icon}</div> : null}
-      <p className="text-[13px] font-medium text-fg">{title}</p>
+      <p className="text-[0.8125rem] font-medium text-fg">{title}</p>
       {description ? <p className="max-w-sm text-xs leading-relaxed text-muted">{description}</p> : null}
       {action ? <div className="mt-2">{action}</div> : null}
     </div>
@@ -240,7 +240,7 @@ export function Notice({
 
 export function Kbd({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="rounded-sm border border-border-strong bg-surface-3 px-1 font-mono text-[10px] text-muted">
+    <kbd className="rounded-sm border border-border-strong bg-surface-3 px-1 font-mono text-[0.625rem] text-muted">
       {children}
     </kbd>
   );

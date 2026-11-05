@@ -13,7 +13,9 @@ import { effectiveFeeRate, getPortfolioState } from "@/services/portfolio/portfo
 import { recordAutopilotCalls, getTrackRecord } from "@/services/predictions/prediction-service";
 import { derivatives, fearGreed, orderBook, smartMoney, type SmartMoney } from "@/services/signals/market-intel";
 import type { TradeContext } from "@/components/portfolio/trade-dialog";
-import { assessRegime, decide, preScore, type Recommendation } from "./engine";
+import { assessRegime, decide, portfolioRisk, preScore, returnCorrelation, type EngineInput, type Recommendation } from "./engine";
+import { cachedSignalBacktest } from "@/services/backtest/backtest-service";
+import { BACKTEST_SIGNALS, signalEdge } from "@/services/backtest/signal-backtest";
 
 /**
  * Autopilot: runs the discovery scan through the decision engine and returns a plan — what to
@@ -77,7 +79,7 @@ async function rowFor(symbol: string, benchmark: DiscoveryRow | null): Promise<D
 async function buildPlan(userId: string, opts: AutopilotOptions) {
   const md = marketData();
   const { watchlist } = await getCollections();
-  const [scan, state, fng, smart, watched, btcDaily, symbolMap] = await Promise.all([
+  const [scan, state, fng, smart, watched, btcDaily, symbolMap, backtest] = await Promise.all([
     getDiscoveryScan(),
     getPortfolioState(userId),
     fearGreed(),
@@ -85,7 +87,13 @@ async function buildPlan(userId: string, opts: AutopilotOptions) {
     watchlist.find({ userId, active: true }, { projection: { symbol: 1 } }).limit(50).toArray(),
     md.klines("BTCUSDT", "1d", "1y").then((r) => r.data).catch((): Kline[] | null => null),
     md.symbolMap().then((r) => r.data).catch(() => null),
+    cachedSignalBacktest().catch(() => null),
   ]);
+  const signalEdges: NonNullable<EngineInput["signalEdges"]> = {};
+  for (const s of BACKTEST_SIGNALS) {
+    const e = signalEdge(backtest, s);
+    if (e) signalEdges[s] = e;
+  }
 
   const rows = scan.data.rows;
   const bySymbol = new Map(rows.map((r) => [r.symbol, r]));
@@ -137,7 +145,7 @@ async function buildPlan(userId: string, opts: AutopilotOptions) {
       if (daily.length < 30) return null;
       const summary = summarizeIndicators(daily, "1d", row.price);
       const h = held.get(row.symbol);
-      return decide(
+      const rec = decide(
         {
           row,
           daily: summary,
@@ -147,10 +155,13 @@ async function buildPlan(userId: string, opts: AutopilotOptions) {
           orderBookImbalance: book?.imbalance ?? null,
           smartMoney: smartBySymbol.get(row.symbol) ?? null,
           holding: h ? { quantity: h.quantity, averageCost: h.averageCost } : null,
+          signalEdges: Object.keys(signalEdges).length ? signalEdges : null,
         },
         regime,
         sizing,
       );
+      rec.btcCorrelation = btcDaily && row.baseAsset !== "BTC" ? returnCorrelation(daily, btcDaily) : row.baseAsset === "BTC" ? 1 : null;
+      return rec;
     } catch (err) {
       logger.warn("autopilot.analysis_failed", { symbol: row.symbol, error: err });
       return null;
@@ -217,6 +228,8 @@ async function buildPlan(userId: string, opts: AutopilotOptions) {
     fearGreed: fng,
     smartMoney: smart ? { ...smart, entries: smart.entries.slice(0, 10) } : (null as SmartMoney | null),
     sizing: { ...sizing, cashAfterBuys: cashLeft },
+    risk: portfolioRisk(recs, sizing.portfolioValue, sizing.cash),
+    signalLabAvailable: backtest !== null,
     universe: { scanned: rows.length, analysed: recs.length },
     recommendations: recs,
     tradeContexts,

@@ -53,7 +53,7 @@ export function Freshness({
     );
   }
   return (
-    <span className={cn("text-[11px] text-faint", className)} title={formatDateTime(fetchedAt)}>
+    <span className={cn("text-[0.6875rem] text-faint", className)} title={formatDateTime(fetchedAt)}>
       Binance · updated {new Date(fetchedAt).toLocaleTimeString("en-US", { hour12: false })}
     </span>
   );

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowDownRight, ArrowRight, ArrowUpRight, CheckCircle2, Clock, MinusCircle, XCircle } from "lucide-react";
 import { Tooltip } from "@/components/ui/radix";
+import { LevelAlertsButton } from "@/components/alerts/level-alerts-button";
 import { cn, formatDateTime, formatPercent, formatPrice } from "@/lib/utils/format";
 
 export interface Prediction {
@@ -61,7 +62,7 @@ export function OutcomeBadge({ p, compact = false }: { p: Prediction; compact?: 
   const ev = p.evaluation;
   if (!ev) {
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] text-faint">
+      <span className="inline-flex items-center gap-1 text-[0.6875rem] text-faint">
         <Clock className="size-3" /> {compact ? "pending" : `Pending · scored ${timeUntil(p.dueAt)}`}
       </span>
     );
@@ -74,7 +75,7 @@ export function OutcomeBadge({ p, compact = false }: { p: Prediction; compact?: 
   }[ev.outcome];
   const Icon = map.icon;
   return (
-    <span className={cn("inline-flex items-center gap-1 text-[11px] font-medium", map.cls)}>
+    <span className={cn("inline-flex items-center gap-1 text-[0.6875rem] font-medium", map.cls)}>
       <Icon className="size-3" /> {map.label}
       {compact ? null : <span className="font-normal text-muted">· {formatPercent(ev.returnPercent)}</span>}
     </span>
@@ -84,10 +85,10 @@ export function OutcomeBadge({ p, compact = false }: { p: Prediction; compact?: 
 function Level({ label, value, price, tone }: { label: string; value: string; price?: number | null; tone?: "up" | "down" }) {
   return (
     <div className="min-w-0">
-      <p className="text-[10px] uppercase tracking-wide text-faint">{label}</p>
-      <p className={cn("truncate font-mono text-[12.5px] tabular-nums", tone === "up" && "text-up", tone === "down" && "text-down")}>
+      <p className="text-[0.625rem] uppercase tracking-wide text-faint">{label}</p>
+      <p className={cn("truncate font-mono text-[0.78125rem] tabular-nums", tone === "up" && "text-up", tone === "down" && "text-down")}>
         {value}
-        {price !== undefined && price !== null ? <span className="ml-1 text-[10.5px] text-muted">{formatPercent(price, { digits: 1 })}</span> : null}
+        {price !== undefined && price !== null ? <span className="ml-1 text-[0.65625rem] text-muted">{formatPercent(price, { digits: 1 })}</span> : null}
       </p>
     </div>
   );
@@ -107,14 +108,19 @@ export function VerdictCard({ p }: { p: Prediction }) {
           <span className={cn("inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold", b.chip)}>
             <Icon className="size-3.5" /> {b.label}
           </span>
-          <Link href={`/crypto/${p.symbol}`} className="text-[13px] font-medium hover:text-accent">{p.symbol}</Link>
+          <Link href={`/crypto/${p.symbol}`} className="text-[0.8125rem] font-medium hover:text-accent">{p.symbol}</Link>
           <span className="text-xs text-muted">next {p.horizon}</span>
         </div>
-        <OutcomeBadge p={p} />
+        <div className="flex items-center gap-2">
+          {!ev && p.bias !== "neutral" ? (
+            <LevelAlertsButton symbol={p.symbol} price={p.priceAtPrediction} stop={p.stop} target={p.target} source="AI call" />
+          ) : null}
+          <OutcomeBadge p={p} />
+        </div>
       </div>
 
       <div className="mt-2.5 flex items-center gap-2">
-        <span className="w-20 text-[11px] text-muted">Confidence</span>
+        <span className="w-20 text-[0.6875rem] text-muted">Confidence</span>
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-3" role="meter" aria-valuemin={50} aria-valuemax={100} aria-valuenow={p.confidence} aria-label="Confidence">
           {/* 50 % is a coin flip, so the bar starts there. */}
           <div className={cn("h-full rounded-full", b.bar)} style={{ width: `${Math.max(4, ((p.confidence - 50) / 50) * 100)}%` }} />
@@ -132,13 +138,13 @@ export function VerdictCard({ p }: { p: Prediction }) {
       </div>
 
       {ev ? (
-        <p className="mt-2.5 border-t border-border pt-2 text-[11px] text-muted">
+        <p className="mt-2.5 border-t border-border pt-2 text-[0.6875rem] text-muted">
           Closed at {formatPrice(ev.endPrice)} ({formatPercent(ev.returnPercent)}) after {p.horizon}; range in window{" "}
           {formatPercent(ev.maxDownsidePercent, { digits: 1 })} / {formatPercent(ev.maxUpsidePercent, { digits: 1 })}.
           {ev.levelHit === "target" ? " Target was reached first." : ev.levelHit === "stop" ? " Stop was reached first." : ev.levelHit === "none" ? " Neither target nor stop was reached." : ""}
         </p>
       ) : (
-        <p className="mt-2.5 border-t border-border pt-2 text-[11px] text-faint">
+        <p className="mt-2.5 border-t border-border pt-2 text-[0.6875rem] text-faint">
           <Tooltip content={<span>Scored close-to-close at {formatDateTime(p.dueAt)}. Directional calls need a move beyond the horizon threshold; smaller moves count as inconclusive.</span>}>
             <span className="cursor-help underline decoration-dotted underline-offset-2">Tracked call</span>
           </Tooltip>{" "}

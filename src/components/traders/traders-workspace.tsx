@@ -60,12 +60,12 @@ interface TrackedRow {
 type Range = "7D" | "30D" | "90D";
 type Sort = "ROI" | "PNL";
 
-const th = "px-3 py-2 text-left text-[11px] font-medium text-muted whitespace-nowrap";
+const th = "px-3 py-2 text-left text-[0.6875rem] font-medium text-muted whitespace-nowrap";
 const td = "px-3 py-2 whitespace-nowrap";
 
 function Avatar({ name }: { name: string }) {
   return (
-    <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-border-strong bg-surface-3 font-mono text-[10px] font-semibold text-muted">
+    <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-border-strong bg-surface-3 font-mono text-[0.625rem] font-semibold text-muted">
       {initials(name)}
     </span>
   );
@@ -160,7 +160,7 @@ function TrackedTab() {
         />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
+          <table className="w-full text-[0.8125rem]">
             <thead className="border-y border-border bg-surface-2/50">
               <tr>
                 <th className={th}>Trader</th>
@@ -185,11 +185,11 @@ function TrackedTab() {
                       <span className="max-w-44 truncate font-medium">{r.trader.name}</span>
                       <Badge tone={r.trader.source === "manual" ? "neutral" : "info"}>{r.trader.source === "manual" ? "Manual" : "Binance"}</Badge>
                     </Link>
-                    {r.trader.lastSyncError ? <p className="mt-0.5 text-[10.5px] text-warn">{r.trader.lastSyncError}</p> : null}
+                    {r.trader.lastSyncError ? <p className="mt-0.5 text-[0.65625rem] text-warn">{r.trader.lastSyncError}</p> : null}
                   </td>
                   <td className={cn(td, "num")}>
                     {formatUsd(r.trader.startingValue, { compact: true })}
-                    {r.trader.startingValueSource === "implied" ? <span className="ml-1 text-[10px] text-faint">implied</span> : null}
+                    {r.trader.startingValueSource === "implied" ? <span className="ml-1 text-[0.625rem] text-faint">implied</span> : null}
                   </td>
                   <td className={cn(td, "text-right")}><ChangeText value={r.returns.dailyReturnPercent} /></td>
                   <td className={cn(td, "text-right")}><ChangeText value={r.returns.weeklyReturnPercent} /></td>
@@ -254,7 +254,7 @@ function DiscoverTab() {
       <div className="flex flex-wrap items-end gap-3 px-4 pb-3">
         <Segmented label="Time range" value={range} onChange={setRange} options={[{ value: "7D", label: "7D" }, { value: "30D", label: "30D" }, { value: "90D", label: "90D" }]} />
         <Segmented label="Sort by" value={sort} onChange={setSort} options={[{ value: "PNL", label: "Profit" }, { value: "ROI", label: "ROI %" }]} />
-        <label className="flex items-center gap-1.5 text-[11px] text-muted">
+        <label className="flex items-center gap-1.5 text-[0.6875rem] text-muted">
           Max drawdown
           <Select value={maxDd} onChange={(e) => setMaxDd(e.target.value)} className="h-7 w-24 text-xs">
             <option value="100">any</option>
@@ -263,7 +263,7 @@ function DiscoverTab() {
             <option value="20">≤ 20%</option>
           </Select>
         </label>
-        <label className="flex items-center gap-1.5 text-[11px] text-muted">
+        <label className="flex items-center gap-1.5 text-[0.6875rem] text-muted">
           Win rate
           <Select value={minWin} onChange={(e) => setMinWin(e.target.value)} className="h-7 w-24 text-xs">
             <option value="0">any</option>
@@ -272,7 +272,7 @@ function DiscoverTab() {
             <option value="70">≥ 70%</option>
           </Select>
         </label>
-        <label className="flex items-center gap-1.5 text-[11px] text-muted">
+        <label className="flex items-center gap-1.5 text-[0.6875rem] text-muted">
           <Tooltip content="Capital implied by profit ÷ ROI. Huge ROI on a tiny account is often luck with high leverage.">
             <span className="cursor-help underline decoration-dotted underline-offset-2">Start capital</span>
           </Tooltip>
@@ -302,7 +302,7 @@ function DiscoverTab() {
         data ? <EmptyState title="No traders match these filters" description="Loosen the drawdown, win-rate or capital filters." /> : null
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
+          <table className="w-full text-[0.8125rem]">
             <thead className="border-y border-border bg-surface-2/50">
               <tr>
                 <th className={th}>#</th>
@@ -336,7 +336,7 @@ function DiscoverTab() {
                           <a href={r.profileUrl} target="_blank" rel="noopener noreferrer" className="flex max-w-48 items-center gap-1 truncate font-medium hover:text-accent">
                             {r.name} <ExternalLink className="size-3 shrink-0 text-faint" />
                           </a>
-                          <p className="text-[10.5px] text-faint">{r.copiers ?? 0} copiers · AUM {formatUsd(r.aum, { compact: true })}</p>
+                          <p className="text-[0.65625rem] text-faint">{r.copiers ?? 0} copiers · AUM {formatUsd(r.aum, { compact: true })}</p>
                         </div>
                       </div>
                     </td>
@@ -366,7 +366,7 @@ function DiscoverTab() {
         </div>
       )}
       {data ? (
-        <p className="px-4 py-3 text-[11px] text-faint">
+        <p className="px-4 py-3 text-[0.6875rem] text-faint">
           Source: Binance Futures copy trading (lead traders), updated {formatRelative(data.fetchedAt)}. These are leveraged futures accounts; past
           ROI is the most survivorship-biased number in trading. Prefer long track records, low drawdown, real capital and positive copier P&L.
           {" "}{formatCompact(data.rows.length)} traders loaded.

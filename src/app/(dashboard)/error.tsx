@@ -17,7 +17,7 @@ export default function DashboardError({ error, reset }: { error: Error & { dige
       <p className="mt-2 text-sm text-muted">
         Something failed while loading data. Nothing was changed. Your simulated portfolio and records are unaffected.
       </p>
-      {error.digest ? <p className="mt-2 font-mono text-[11px] text-faint">Reference {error.digest}</p> : null}
+      {error.digest ? <p className="mt-2 font-mono text-[0.6875rem] text-faint">Reference {error.digest}</p> : null}
       <Button className="mt-5" variant="primary" onClick={reset}>
         <RotateCcw className="size-3.5" /> Try again
       </Button>

@@ -28,7 +28,7 @@ export function FeeSettingsForm({ enabled, ratePercent }: { enabled: boolean; ra
   const s = useSaver();
   return (
     <div className="space-y-3">
-      <label className="flex items-center justify-between gap-3 text-[13px]">
+      <label className="flex items-center justify-between gap-3 text-[0.8125rem]">
         Include estimated trading fees
         <Switch checked={on} onCheckedChange={setOn} aria-label="Include estimated trading fees" />
       </label>
@@ -78,7 +78,7 @@ export function ResetPortfolioForm({ currentQuote }: { currentQuote: string }) {
             ))}
           </Select>
         </Field>
-        <label className="flex items-center justify-between gap-3 text-[13px] sm:col-span-2">
+        <label className="flex items-center justify-between gap-3 text-[0.8125rem] sm:col-span-2">
           Include estimated trading fees
           <Switch checked={feeOn} onCheckedChange={setFeeOn} aria-label="Include fees in the new portfolio" />
         </label>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowDownRight, ArrowUpRight, ChevronDown, Eye, Gauge, LineChart, RefreshCw, ShieldAlert, Users } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, ChevronDown, Eye, FlaskConical, Gauge, LineChart, RefreshCw, ShieldAlert, Users } from "lucide-react";
 import { useApi } from "@/hooks/use-api";
 import { apiFetch, ApiClientError } from "@/lib/client/api";
 import { Badge, Button, EmptyState, Notice, Panel, PanelBody, PanelHeader, Skeleton } from "@/components/ui/primitives";
@@ -10,6 +10,7 @@ import { Segmented, Tooltip } from "@/components/ui/radix";
 import { Freshness } from "@/components/market/indicators";
 import { TradeDialog, type TradeContext } from "@/components/portfolio/trade-dialog";
 import { AskAIButton } from "@/components/research/ask-ai-button";
+import { LevelAlertsButton } from "@/components/alerts/level-alerts-button";
 import { OutcomeBadge, type Prediction } from "@/components/chat/verdict-card";
 import { SIGNAL_INFO, type DiscoverySignal } from "@/services/discovery/signals";
 import { cn, formatPercent, formatPrice, formatRelative, formatUsd } from "@/lib/utils/format";
@@ -39,6 +40,7 @@ interface Rec {
   signals: DiscoverySignal[];
   cautions: string[];
   holding: { quantity: number; averageCost: number; marketValue: number; pnlPercent: number } | null;
+  btcCorrelation?: number | null;
 }
 
 interface Plan {
@@ -50,6 +52,17 @@ interface Plan {
   smartMoney: { window: string; tradersSampled: number; entries: Array<{ symbol: string; longs: number; shorts: number; traders: number }> } | null;
   sizing: { portfolioValue: number; cash: number; riskPerTradePercent: number; maxPositionPercent: number; cashAfterBuys: number };
   universe: { scanned: number; analysed: number };
+  risk: {
+    lossAtStops: number;
+    lossAtStopsPercent: number;
+    unprotected: string[];
+    largestPosition: { symbol: string; percent: number } | null;
+    top3Percent: number;
+    cashPercent: number;
+    btcCorrelation: number | null;
+    warnings: string[];
+  };
+  signalLabAvailable: boolean;
   recommendations: Rec[];
   tradeContexts: Record<string, TradeContext>;
   trackRecord: { summary: { total: number; pending: number; correct: number; incorrect: number; inconclusive: number; hitRatePercent: number | null; avgConfidence: number | null }; recent: Prediction[] } | null;
@@ -100,10 +113,10 @@ function ScoreBar({ score }: { score: number }) {
 function Level({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: "up" | "down" }) {
   return (
     <div className="min-w-0">
-      <p className="text-[10px] uppercase tracking-wide text-faint">{label}</p>
-      <p className={cn("num truncate text-[12.5px]", tone === "up" && "text-up", tone === "down" && "text-down")}>
+      <p className="text-[0.625rem] uppercase tracking-wide text-faint">{label}</p>
+      <p className={cn("num truncate text-[0.78125rem]", tone === "up" && "text-up", tone === "down" && "text-down")}>
         {value}
-        {sub ? <span className="ml-1 text-[10.5px] text-muted">{sub}</span> : null}
+        {sub ? <span className="ml-1 text-[0.65625rem] text-muted">{sub}</span> : null}
       </p>
     </div>
   );
@@ -124,7 +137,7 @@ function RecCard({ r, ctx }: { r: Rec; ctx: TradeContext | undefined }) {
             {r.action === "BUY" || r.action === "ADD" ? <ArrowUpRight className="size-3" /> : isSell ? <ArrowDownRight className="size-3" /> : null}
             {style.label}
           </Badge>
-          <Link href={`/crypto/${r.symbol}`} className="text-[13px] font-semibold hover:text-accent">{r.baseAsset}</Link>
+          <Link href={`/crypto/${r.symbol}`} className="text-[0.8125rem] font-semibold hover:text-accent">{r.baseAsset}</Link>
           <span className="max-w-32 truncate text-xs text-muted">{r.name}</span>
         </div>
         <div className="flex items-center gap-3">
@@ -165,6 +178,12 @@ function RecCard({ r, ctx }: { r: Rec; ctx: TradeContext | undefined }) {
         />
       </div>
 
+      {r.btcCorrelation != null && r.baseAsset !== "BTC" ? (
+        <p className="mt-1.5 text-[0.65625rem] text-faint">
+          Moves with BTC: {r.btcCorrelation >= 0.75 ? "strongly" : r.btcCorrelation >= 0.45 ? "moderately" : "weakly"} (90-day correlation {r.btcCorrelation.toFixed(2)})
+        </p>
+      ) : null}
+
       {r.signals.length || r.cautions.length ? (
         <div className="mt-2 flex flex-wrap gap-1">
           {r.signals.map((s) => <Badge key={s} tone="accent" title={SIGNAL_INFO[s].description}>{SIGNAL_INFO[s].label}</Badge>)}
@@ -183,6 +202,9 @@ function RecCard({ r, ctx }: { r: Rec; ctx: TradeContext | undefined }) {
               </Button>
             }
           />
+        ) : null}
+        {r.action === "BUY" || r.action === "ADD" || r.action === "HOLD" || r.action === "WATCH" ? (
+          <LevelAlertsButton symbol={r.symbol} price={r.price} stop={r.stop} target={r.target} source="Autopilot" />
         ) : null}
         <AskAIButton symbol={r.symbol} label="Ask AI" />
         <Link href={`/crypto/${r.symbol}`} className="inline-flex items-center gap-1 text-xs text-muted hover:text-fg"><LineChart className="size-3.5" /> Chart</Link>
@@ -205,7 +227,7 @@ function RecCard({ r, ctx }: { r: Rec; ctx: TradeContext | undefined }) {
             <p className="mb-1 text-muted">Factor scores (−2 … +2, weight)</p>
             <div className="flex flex-wrap gap-1.5">
               {r.factors.map((f) => (
-                <span key={f.name} className={cn("rounded-sm border px-1.5 py-0.5 font-mono text-[10.5px]", f.score > 0 ? "border-up/30 text-up" : f.score < 0 ? "border-down/30 text-down" : "border-border text-muted")}>
+                <span key={f.name} className={cn("rounded-sm border px-1.5 py-0.5 font-mono text-[0.65625rem]", f.score > 0 ? "border-up/30 text-up" : f.score < 0 ? "border-down/30 text-down" : "border-border text-muted")}>
                   {f.name} {f.score > 0 ? "+" : ""}{f.score.toFixed(1)} ×{f.weight}
                 </span>
               ))}
@@ -258,19 +280,19 @@ export function AutopilotWorkspace() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-[11px] text-muted">
+        <label className="flex items-center gap-2 text-[0.6875rem] text-muted">
           <Tooltip content="How much of the portfolio you lose if a stop is hit. Position sizes are derived from this and the stop distance.">
             <span className="cursor-help underline decoration-dotted underline-offset-2">Risk per trade</span>
           </Tooltip>
           <Segmented label="Risk per trade" value={risk} onChange={setRisk} options={[{ value: "0.5", label: "0.5%" }, { value: "1", label: "1%" }, { value: "2", label: "2%" }]} />
         </label>
-        <label className="flex items-center gap-2 text-[11px] text-muted">
+        <label className="flex items-center gap-2 text-[0.6875rem] text-muted">
           Max per position
           <Segmented label="Max per position" value={maxPos} onChange={setMaxPos} options={[{ value: "10", label: "10%" }, { value: "15", label: "15%" }, { value: "25", label: "25%" }]} />
         </label>
         <div className="ml-auto flex items-center gap-2">
           {data ? <Freshness fetchedAt={data.scanFetchedAt} stale={data.stale} /> : null}
-          {data ? <span className="text-[11px] text-faint">plan {formatRelative(data.generatedAt)}</span> : null}
+          {data ? <span className="text-[0.6875rem] text-faint">plan {formatRelative(data.generatedAt)}</span> : null}
           <Button size="sm" variant="secondary" loading={refreshing} onClick={() => void forceRefresh()}>
             <RefreshCw className="size-3.5" /> Re-run
           </Button>
@@ -317,7 +339,7 @@ export function AutopilotWorkspace() {
                     <p className="text-faint">{tr.pending} pending · {tr.inconclusive} inconclusive</p>
                     <ul className="mt-2 space-y-0.5">
                       {data.trackRecord!.recent.slice(0, 5).map((p) => (
-                        <li key={p._id} className="flex items-center justify-between gap-2 text-[11px]">
+                        <li key={p._id} className="flex items-center justify-between gap-2 text-[0.6875rem]">
                           <span className="truncate"><span className={p.bias === "bullish" ? "text-up" : "text-down"}>{p.bias === "bullish" ? "▲" : "▼"}</span> {p.symbol.replace(/USDT$/, "")} <span className="text-faint">{p.confidence}% · {formatRelative(p.timestamp)}</span></span>
                           <OutcomeBadge p={p} compact />
                         </li>
@@ -330,6 +352,46 @@ export function AutopilotWorkspace() {
               </PanelBody>
             </Panel>
           </div>
+
+          {positions.length ? (
+            <Panel>
+              <PanelHeader
+                title={<span className="flex items-center gap-2"><ShieldAlert className="size-3.5 text-muted" /> Portfolio risk</span>}
+                description="What the suggested stops protect, and how concentrated the portfolio is."
+              />
+              <PanelBody className="grid gap-3 text-xs sm:grid-cols-5">
+                <div>
+                  <p className="label-caps">Loss if all stops hit</p>
+                  <p className={cn("num text-sm", data.risk.lossAtStopsPercent > 10 ? "text-down" : "")}>
+                    {formatUsd(-data.risk.lossAtStops)} <span className="text-muted">({formatPercent(-data.risk.lossAtStopsPercent, { digits: 1 })})</span>
+                  </p>
+                  {data.risk.unprotected.length ? <p className="text-[0.65625rem] text-faint">no stop: {data.risk.unprotected.map((s) => s.replace(/USDT$/, "")).join(", ")}</p> : null}
+                </div>
+                <div>
+                  <p className="label-caps">Largest position</p>
+                  <p className="num text-sm">{data.risk.largestPosition ? `${data.risk.largestPosition.symbol.replace(/USDT$/, "")} ${data.risk.largestPosition.percent.toFixed(0)}%` : "—"}</p>
+                </div>
+                <div><p className="label-caps">Top 3 positions</p><p className="num text-sm">{data.risk.top3Percent.toFixed(0)}%</p></div>
+                <div><p className="label-caps">Cash</p><p className="num text-sm">{data.risk.cashPercent.toFixed(0)}%</p></div>
+                <div>
+                  <p className="label-caps">Correlation with BTC</p>
+                  <p className="num text-sm">{data.risk.btcCorrelation !== null ? data.risk.btcCorrelation.toFixed(2) : "—"}</p>
+                </div>
+                {data.risk.warnings.length ? (
+                  <ul className="space-y-0.5 text-warn sm:col-span-5">{data.risk.warnings.map((w) => <li key={w}>• {w}</li>)}</ul>
+                ) : null}
+              </PanelBody>
+            </Panel>
+          ) : null}
+
+          {!data.signalLabAvailable ? (
+            <Notice tone="info">
+              <span className="flex items-center gap-1.5">
+                <FlaskConical className="size-3.5" /> Signals are counted as simply bullish until the{" "}
+                <Link href="/signals" className="underline">Signal Lab</Link> backtest has run once; after that Autopilot weights each signal by its real track record.
+              </span>
+            </Notice>
+          ) : null}
 
           {data.fearGreed || data.smartMoney ? (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-border bg-surface px-4 py-2.5 text-xs">
@@ -347,7 +409,7 @@ export function AutopilotWorkspace() {
                     <span className="cursor-help underline decoration-dotted underline-offset-2">Top traders opened</span>
                   </Tooltip>
                   {data.smartMoney.entries.slice(0, 8).map((e) => (
-                    <Link key={e.symbol} href={`/crypto/${e.symbol}`} className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-[10.5px] hover:border-accent/50">
+                    <Link key={e.symbol} href={`/crypto/${e.symbol}`} className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-[0.65625rem] hover:border-accent/50">
                       {e.symbol.replace(/USDT$/, "")} <span className="text-up">{e.longs}L</span>/<span className="text-down">{e.shorts}S</span>
                     </Link>
                   ))}
@@ -371,12 +433,12 @@ export function AutopilotWorkspace() {
           ) : null}
           {avoid.length ? (
             <details className="rounded-lg border border-border bg-surface">
-              <summary className="cursor-pointer px-4 py-3 text-[13px] font-semibold"><Eye className="mr-1.5 inline size-3.5 text-muted" />No edge / avoid ({avoid.length})</summary>
+              <summary className="cursor-pointer px-4 py-3 text-[0.8125rem] font-semibold"><Eye className="mr-1.5 inline size-3.5 text-muted" />No edge / avoid ({avoid.length})</summary>
               <div className="grid gap-3 px-4 pb-4 lg:grid-cols-2">{avoid.map((r) => <RecCard key={r.symbol} r={r} ctx={data.tradeContexts[r.symbol]} />)}</div>
             </details>
           ) : null}
 
-          <p className="text-[11px] leading-relaxed text-faint">
+          <p className="text-[0.6875rem] leading-relaxed text-faint">
             Autopilot is a rules engine over Binance data: trend, momentum, strength vs BTC, discovery signals, historical base rates, futures positioning,
             order-book depth, top copy traders and the market regime. It never trades: buttons open the simulated trade dialog. Not financial advice:
             the scores are probabilities, many calls will be wrong, and the track record above shows how often. Use stops.

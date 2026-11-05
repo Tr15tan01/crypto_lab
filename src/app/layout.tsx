@@ -3,6 +3,8 @@ import { headers } from "next/headers";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { DEFAULT_THEME, THEME_INIT_SCRIPT } from "@/lib/theme";
+import { UI_SCALE_INIT_SCRIPT } from "@/lib/ui-scale";
+import { UiScaleSync } from "@/components/layout/ui-scale-sync";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,15 +28,18 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       data-theme={DEFAULT_THEME}
-      // The inline script below may change data-theme before React hydrates.
+      // The inline script below may change data-theme and the text-size variable before React hydrates.
       suppressHydrationWarning
       className={`${GeistSans.variable} ${GeistMono.variable} h-full antialiased`}
     >
       <head>
         {/* Browsers blank the nonce attribute after parsing, hence suppressHydrationWarning. */}
-        <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: `${THEME_INIT_SCRIPT};${UI_SCALE_INIT_SCRIPT}` }} />
       </head>
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        <UiScaleSync />
+        {children}
+      </body>
     </html>
   );
 }

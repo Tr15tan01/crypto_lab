@@ -32,9 +32,9 @@ export default async function ReportsPage() {
           <EmptyState title="No reports yet" description="Open any coin and choose “Generate analysis”." />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-[13px]">
+            <table className="w-full min-w-[760px] text-[0.8125rem]">
               <thead>
-                <tr className="border-b border-border text-left text-[11px] text-muted">
+                <tr className="border-b border-border text-left text-[0.6875rem] text-muted">
                   <th className="px-4 py-2 font-medium">Generated</th>
                   <th className="px-3 py-2 font-medium">Pair</th>
                   <th className="px-3 py-2 font-medium">Lean</th>

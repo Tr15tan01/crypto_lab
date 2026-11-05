@@ -88,7 +88,7 @@ interface Detail {
   asOf: number;
 }
 
-const th = "px-3 py-2 text-left text-[11px] font-medium text-muted whitespace-nowrap";
+const th = "px-3 py-2 text-left text-[0.6875rem] font-medium text-muted whitespace-nowrap";
 const td = "px-3 py-2 whitespace-nowrap";
 
 function Stat({ label, children, hint }: { label: string; children: React.ReactNode; hint?: React.ReactNode }) {
@@ -96,7 +96,7 @@ function Stat({ label, children, hint }: { label: string; children: React.ReactN
     <div className="rounded-lg border border-border bg-surface px-3 py-2.5">
       <p className="label-caps">{label}</p>
       <div className="num mt-1 text-base">{children}</div>
-      {hint ? <p className="mt-0.5 text-[10.5px] text-faint">{hint}</p> : null}
+      {hint ? <p className="mt-0.5 text-[0.65625rem] text-faint">{hint}</p> : null}
     </div>
   );
 }
@@ -415,7 +415,7 @@ export function TraderDetail({ id }: { id: string }) {
             ) : (
               <p className="text-xs text-muted">Holding time, leverage, direction mix, trading frequency and coin selection are all in line with before.</p>
             )}
-            <p className="mt-3 text-[10.5px] text-faint">Change score {m.strategy.score}/100. A changing style after a big win (or loss) often precedes worse results.</p>
+            <p className="mt-3 text-[0.65625rem] text-faint">Change score {m.strategy.score}/100. A changing style after a big win (or loss) often precedes worse results.</p>
             {binance && trader.remote ? (
               <table className="mt-4 w-full text-xs">
                 <thead><tr className="text-muted"><th className="py-1 text-left font-medium">Range</th><th className="py-1 text-right font-medium">ROI</th><th className="py-1 text-right font-medium">P&L</th><th className="py-1 text-right font-medium">Max DD</th><th className="py-1 text-right font-medium">Win</th></tr></thead>
@@ -446,7 +446,7 @@ export function TraderDetail({ id }: { id: string }) {
         />
         {m.stats.coins.length ? (
           <div className="overflow-x-auto">
-            <table className="w-full text-[13px]">
+            <table className="w-full text-[0.8125rem]">
               <thead className="border-b border-border bg-surface-2/50">
                 <tr>
                   <th className={th}>Coin</th>
@@ -484,7 +484,7 @@ export function TraderDetail({ id }: { id: string }) {
         <PanelHeader title="Positions" description="Entry and exit prices, holding time and result, newest first." />
         {trades.length ? (
           <div className="overflow-x-auto">
-            <table className="w-full text-[13px]">
+            <table className="w-full text-[0.8125rem]">
               <thead className="border-b border-border bg-surface-2/50">
                 <tr>
                   <th className={th}>Pair</th>

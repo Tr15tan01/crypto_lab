@@ -36,9 +36,9 @@ export function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
   }
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[860px] text-[13px]">
+      <table className="w-full min-w-[860px] text-[0.8125rem]">
         <thead>
-          <tr className="border-b border-border text-left text-[11px] text-muted">
+          <tr className="border-b border-border text-left text-[0.6875rem] text-muted">
             <th className="px-4 py-2 font-medium">Asset</th>
             <th className="px-3 py-2 text-right font-medium">Quantity</th>
             <th className="px-3 py-2 text-right font-medium">Avg cost</th>
@@ -63,15 +63,15 @@ export function HoldingsTable({ rows }: { rows: HoldingRow[] }) {
               <td className="num px-3 py-2 text-right">
                 {formatPrice(h.price)}
                 {h.price !== null && !h.priceLive ? (
-                  <span className="block text-[10px] text-warn">last known · {formatRelative(h.priceAsOf)}</span>
+                  <span className="block text-[0.625rem] text-warn">last known · {formatRelative(h.priceAsOf)}</span>
                 ) : null}
-                {h.price === null ? <span className="block text-[10px] text-down">price unavailable</span> : null}
+                {h.price === null ? <span className="block text-[0.625rem] text-down">price unavailable</span> : null}
               </td>
               <td className="num px-3 py-2 text-right">{formatUsd(h.marketValue)}</td>
               <td className="px-3 py-2 text-right">
                 <ChangeText value={h.unrealizedPnL} format="usd" />
-                <span className="block text-[11px]">
-                  <ChangeText value={h.unrealizedPercent} showIcon={false} className="text-[11px]" />
+                <span className="block text-[0.6875rem]">
+                  <ChangeText value={h.unrealizedPercent} showIcon={false} className="text-[0.6875rem]" />
                 </span>
               </td>
               <td className="num px-3 py-2 text-right text-muted">{formatPercent(h.allocationPercent, { sign: false, digits: 1 })}</td>

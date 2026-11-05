@@ -99,7 +99,7 @@ export function PortfolioValueChart({
           <Line dataKey="v" name="Portfolio value" stroke={SERIES[0]} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: CHART.surface, strokeWidth: 2 }} isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
-      <p className="flex items-center gap-3 px-1 text-[11px] text-muted">
+      <p className="flex items-center gap-3 px-1 text-[0.6875rem] text-muted">
         <span className="flex items-center gap-1.5"><Swatch color={SERIES[0]} /> Portfolio value</span>
         <span className="flex items-center gap-1.5"><Swatch color={CHART.axisText} dashed /> Starting balance {formatUsd(initialBalance)}</span>
       </p>
@@ -192,7 +192,7 @@ export function AssetPnLChart({ rows }: { rows: Array<{ label: string; realized:
               );
             }}
           />
-          <Legend iconType="plainline" wrapperStyle={{ fontSize: 11, color: CHART.axisText }} />
+          <Legend iconType="plainline" wrapperStyle={{ fontSize: "0.6875rem", color: CHART.axisText }} />
           <Bar dataKey="realized" name="Realized" fill={SERIES[0]} radius={[0, 4, 4, 0]} maxBarSize={12} isAnimationActive={false} />
           <Bar dataKey="unrealized" name="Unrealized" fill={SERIES[1]} radius={[0, 4, 4, 0]} maxBarSize={12} isAnimationActive={false} />
         </BarChart>
@@ -233,7 +233,7 @@ export function MonthlyChart({ months }: { months: Array<{ month: string; return
             dataKey="returnPercent"
             maxBarSize={36}
             isAnimationActive={false}
-            label={{ position: "top", fill: CHART.axisText, fontSize: 10, formatter: (v: unknown) => formatPercent(Number(v), { digits: 1 }) }}
+            label={{ position: "top", fill: CHART.axisText, fontSize: "0.625rem", formatter: (v: unknown) => formatPercent(Number(v), { digits: 1 }) }}
           >
             {months.map((m) => (
               <Cell key={m.month} fill={m.returnPercent >= 0 ? CHART.up : CHART.down} />
@@ -288,7 +288,7 @@ export function ActivityTimeline({
               );
             }}
           />
-          <Legend iconType="triangle" wrapperStyle={{ fontSize: 11, color: CHART.axisText }} />
+          <Legend iconType="triangle" wrapperStyle={{ fontSize: "0.6875rem", color: CHART.axisText }} />
           <Scatter name="Buy" data={buys} shape={shape(true)} fill={CHART.up} isAnimationActive={false} />
           <Scatter name="Sell" data={sells} shape={shape(false)} fill={CHART.down} isAnimationActive={false} />
         </ScatterChart>
@@ -351,7 +351,7 @@ export function BenchmarkChart({
               );
             }}
           />
-          <Legend iconType="plainline" wrapperStyle={{ fontSize: 11, color: CHART.axisText }} />
+          <Legend iconType="plainline" wrapperStyle={{ fontSize: "0.6875rem", color: CHART.axisText }} />
           {all.map((s, i) => (
             <Line key={s.label} dataKey={s.label} name={s.label} stroke={SERIES[i]} strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
           ))}

@@ -25,7 +25,7 @@ export function BiasBadge({ bias }: { bias: ResearchListItem["bias"] }) {
 }
 
 export function OutcomeChips({ evaluations }: { evaluations: ResearchListItem["evaluations"] }) {
-  if (!evaluations.length) return <span className="text-[11px] text-faint">Not evaluated yet</span>;
+  if (!evaluations.length) return <span className="text-[0.6875rem] text-faint">Not evaluated yet</span>;
   return (
     <span className="flex flex-wrap gap-1">
       {evaluations.map((e) => (
@@ -62,7 +62,7 @@ export function ResearchPanel({ symbol, items, canGenerate }: { symbol: string; 
     <div>
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div>
-          <h2 className="text-[13px] font-semibold">AI analysis reports</h2>
+          <h2 className="text-[0.8125rem] font-semibold">AI analysis reports</h2>
           <p className="mt-0.5 text-xs text-muted">Indicators are computed by the app; the AI interprets them. Not a forecast.</p>
         </div>
         <Button size="sm" variant="primary" loading={busy} disabled={!canGenerate} onClick={() => void generate()}>

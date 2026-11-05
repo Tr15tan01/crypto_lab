@@ -20,7 +20,7 @@ export function IndicatorPanel({ s, error }: { s: IndicatorSummary | null; error
   if (!s) return <EmptyState className="py-8" title="Indicators unavailable" description={error ?? undefined} />;
   return (
     <div className="space-y-4 p-4">
-      <p className="flex items-center gap-1.5 text-[11px] text-faint">
+      <p className="flex items-center gap-1.5 text-[0.6875rem] text-faint">
         Daily candles · {s.candles} closed · as of {formatDateTime(s.asOf)}
         <Tooltip content="Indicators are calculated deterministically by the app from Binance candles. They describe the past, lag price, and produce false signals — especially in thin or news-driven markets.">
           <Info className="size-3" aria-label="About indicators" />
@@ -59,7 +59,7 @@ export function IndicatorPanel({ s, error }: { s: IndicatorSummary | null; error
         </ul>
       </div>
       {s.warnings.length ? (
-        <ul className="space-y-1 text-[11px] text-warn">
+        <ul className="space-y-1 text-[0.6875rem] text-warn">
           {s.warnings.map((w) => (
             <li key={w}>{w}</li>
           ))}

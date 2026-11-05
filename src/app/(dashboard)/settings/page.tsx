@@ -10,6 +10,7 @@ import { getAIStatus } from "@/services/ai/providers/factory";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge, Notice, Panel, PanelBody, PanelHeader } from "@/components/ui/primitives";
 import { AlertIntervalForm, FeeSettingsForm, ResetPortfolioForm } from "@/components/settings/settings-forms";
+import { TextSizeForm } from "@/components/settings/text-size-form";
 import { formatDateTime, formatUsd } from "@/lib/utils/format";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -42,8 +43,15 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" description="Paper-portfolio configuration, alerts, and the status of external services." />
+      <PageHeader title="Settings" description="Display, paper-portfolio configuration, alerts, and the status of external services." />
       <div className="grid gap-4 xl:grid-cols-2">
+        <Panel>
+          <PanelHeader title="Display" description="Text size for the whole app. Light/dark theme is in the top bar." />
+          <PanelBody>
+            <TextSizeForm />
+          </PanelBody>
+        </Panel>
+
         <Panel>
           <PanelHeader title="Paper portfolio" description="Theoretical funds only — nothing here touches Binance." />
           <PanelBody className="space-y-5">
@@ -80,7 +88,7 @@ export default async function SettingsPage() {
                 <ul className="list-disc pl-4">{ai.problems.map((x) => <li key={x}>{x}</li>)}</ul>
               </Notice>
             ) : null}
-            <p className="mt-3 text-[11px] text-faint">
+            <p className="mt-3 text-[0.6875rem] text-faint">
               Changing the provider or model takes effect on the next request. The app never switches providers on its own; if the
               configured provider fails you see an error and can retry.
             </p>
@@ -109,7 +117,7 @@ export default async function SettingsPage() {
             <Row label="Source">Binance Spot public market data (no API key, read-only)</Row>
             <Row label="Endpoint">{env?.BINANCE_API_BASE ?? "—"}</Row>
             <Row label="Ticker cache">{env ? `${env.MARKET_TICKER_TTL_SECONDS} s` : "—"}</Row>
-            <p className="mt-3 text-[11px] text-faint">
+            <p className="mt-3 text-[0.6875rem] text-faint">
               The app never requests Binance account access, trading permissions, withdrawal permissions, seed phrases or private keys.
             </p>
           </PanelBody>
@@ -121,7 +129,7 @@ export default async function SettingsPage() {
             <Row label="Administrator">{user.email}</Row>
             <Row label="Sign-in methods">Email + password{googleAuthEnabled() ? " · Google (restricted to one address)" : ""}</Row>
             <Row label="Registration">Disabled — single-user application</Row>
-            <p className="mt-3 text-[11px] text-faint">
+            <p className="mt-3 text-[0.6875rem] text-faint">
               To change the password, generate a new hash with <code>npm run hash-password</code> and update ADMIN_PASSWORD_HASH.
             </p>
           </PanelBody>

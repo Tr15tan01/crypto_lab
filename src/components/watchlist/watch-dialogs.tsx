@@ -136,7 +136,7 @@ export function RemoveFromWatchlistButton({ id, symbol, onRemoved }: { id: strin
   }
   return (
     <span className="inline-flex items-center gap-1">
-      <span className="text-[11px] text-muted">Remove {symbol}? History is kept.</span>
+      <span className="text-[0.6875rem] text-muted">Remove {symbol}? History is kept.</span>
       <Button
         size="sm"
         variant="danger"

@@ -24,7 +24,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
               onClick={onNavigate}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "group relative flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] transition-colors",
+                "group relative flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[0.8125rem] transition-colors",
                 active ? "bg-surface-3 text-fg" : "text-muted hover:bg-surface-2 hover:text-fg",
               )}
             >
@@ -45,7 +45,7 @@ function Brand() {
       <span className="flex size-6 items-center justify-center rounded-md border border-accent/30 bg-accent/10">
         <FlaskConical className="size-3.5 text-accent" />
       </span>
-      <span className="text-[13px] font-semibold tracking-tight">Crypto Lab</span>
+      <span className="text-[0.8125rem] font-semibold tracking-tight">Crypto Lab</span>
     </Link>
   );
 }
@@ -62,7 +62,7 @@ export function Sidebar({ email, signOutSlot }: { email: string; signOutSlot: Re
           <NavLinks />
         </nav>
         <div className="mx-2 space-y-2 border-t border-border px-2.5 pt-3">
-          <p className="truncate text-[11px] text-faint" title={email}>
+          <p className="truncate text-[0.6875rem] text-faint" title={email}>
             {email}
           </p>
           {signOutSlot}
@@ -100,7 +100,7 @@ export function Sidebar({ email, signOutSlot }: { email: string; signOutSlot: Re
               <NavLinks onNavigate={() => setOpen(false)} />
             </nav>
             <div className="mx-2 space-y-2 border-t border-border px-2.5 pt-3">
-              <p className="truncate text-[11px] text-faint">{email}</p>
+              <p className="truncate text-[0.6875rem] text-faint">{email}</p>
               {signOutSlot}
             </div>
           </div>

@@ -55,6 +55,11 @@ export interface EngineInput {
   orderBookImbalance: number | null;
   smartMoney: { longs: number; shorts: number; traders: number } | null;
   holding: { quantity: number; averageCost: number } | null;
+  /**
+   * Backtested 7-day edge vs BTC per signal (Signal Lab). When present, firing signals are
+   * weighted by what they actually did historically instead of all counting as bullish.
+   */
+  signalEdges?: Partial<Record<DiscoverySignal, { edge: number; tStat: number; events: number }>> | null;
 }
 
 export interface SizingInput {
@@ -93,6 +98,8 @@ export interface Recommendation {
   signals: DiscoverySignal[];
   cautions: string[];
   holding: { quantity: number; averageCost: number; marketValue: number; pnlPercent: number } | null;
+  /** 90-day daily-return correlation with BTC (set by the service). */
+  btcCorrelation?: number | null;
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -149,12 +156,27 @@ export function buildFactors(input: EngineInput): Factor[] {
   });
 
   const bullish = row.signals.filter((s) => BULLISH_SIGNALS.includes(s));
-  f.push({
-    name: "Discovery signals",
-    score: clamp(bullish.length * 0.75, 0, 2),
-    weight: 0.12,
-    note: bullish.length ? `${bullish.length} bullish signal${bullish.length > 1 ? "s" : ""} firing` : "no discovery signal",
-  });
+  const edges = input.signalEdges;
+  const tested = edges ? row.signals.filter((s) => edges[s]) : [];
+  if (edges && tested.length) {
+    // Only signals whose history is at least weakly significant move the score.
+    let sum = 0;
+    const notes: string[] = [];
+    for (const s of tested) {
+      const e = edges[s]!;
+      const counts = Math.abs(e.tStat) >= 1.5;
+      if (counts) sum += e.edge;
+      notes.push(`${s.replace(/_/g, " ")} ${e.edge > 0 ? "+" : ""}${e.edge.toFixed(1)}% vs BTC/7d historically (t ${e.tStat.toFixed(1)}${counts ? "" : ", not significant"})`);
+    }
+    f.push({ name: "Signal track record", score: clamp(sum / 1.5, -2, 2), weight: 0.12, note: notes.join("; ") });
+  } else {
+    f.push({
+      name: "Discovery signals",
+      score: clamp(bullish.length * 0.75, 0, 2),
+      weight: 0.12,
+      note: bullish.length ? `${bullish.length} bullish signal${bullish.length > 1 ? "s" : ""} firing` : "no discovery signal",
+    });
+  }
 
   if (fourHour) {
     let s = 0;
@@ -417,6 +439,84 @@ const NO_LEVELS: AutopilotAction[] = ["SELL", "AVOID", "NEUTRAL"];
 function fmt(n: number) {
   const abs = Math.abs(n);
   return n.toLocaleString("en-US", { maximumFractionDigits: abs >= 1000 ? 0 : abs >= 1 ? 3 : 6 });
+}
+
+/** Pearson correlation of daily returns over the days both series share (last `days`). */
+export function returnCorrelation(a: Array<{ openTime: number; close: number }>, b: Array<{ openTime: number; close: number }>, days = 90): number | null {
+  const byDay = new Map(b.map((k) => [Math.floor(k.openTime / 86_400_000), k.close]));
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (let i = Math.max(1, a.length - days); i < a.length; i++) {
+    const d0 = Math.floor(a[i - 1]!.openTime / 86_400_000);
+    const d1 = Math.floor(a[i]!.openTime / 86_400_000);
+    const b0 = byDay.get(d0);
+    const b1 = byDay.get(d1);
+    if (!b0 || !b1 || a[i - 1]!.close <= 0) continue;
+    xs.push(a[i]!.close / a[i - 1]!.close - 1);
+    ys.push(b1 / b0 - 1);
+  }
+  if (xs.length < 20) return null;
+  const mx = xs.reduce((s, v) => s + v, 0) / xs.length;
+  const my = ys.reduce((s, v) => s + v, 0) / ys.length;
+  let num = 0;
+  let dx = 0;
+  let dy = 0;
+  for (let i = 0; i < xs.length; i++) {
+    num += (xs[i]! - mx) * (ys[i]! - my);
+    dx += (xs[i]! - mx) ** 2;
+    dy += (ys[i]! - my) ** 2;
+  }
+  return dx > 0 && dy > 0 ? num / Math.sqrt(dx * dy) : null;
+}
+
+export interface PortfolioRisk {
+  /** Loss if every held position fell to its stop. */
+  lossAtStops: number;
+  lossAtStopsPercent: number;
+  /** Held positions without a usable stop (sell suggestions, or no level data). */
+  unprotected: string[];
+  largestPosition: { symbol: string; percent: number } | null;
+  top3Percent: number;
+  cashPercent: number;
+  /** Value-weighted 90-day correlation of the holdings with BTC. */
+  btcCorrelation: number | null;
+  warnings: string[];
+}
+
+export function portfolioRisk(
+  recs: Array<Pick<Recommendation, "symbol" | "price" | "stop" | "holding"> & { btcCorrelation?: number | null }>,
+  portfolioValue: number,
+  cash: number,
+): PortfolioRisk {
+  const held = recs.filter((r) => r.holding && r.holding.quantity > 0);
+  let loss = 0;
+  const unprotected: string[] = [];
+  for (const r of held) {
+    if (r.stop !== null && r.stop < r.price) loss += r.holding!.quantity * (r.price - r.stop);
+    else unprotected.push(r.symbol);
+  }
+  const weights = held.map((r) => ({ symbol: r.symbol, value: r.holding!.marketValue, corr: r.btcCorrelation ?? null })).sort((a, b) => b.value - a.value);
+  const pct = (v: number) => (portfolioValue > 0 ? (v / portfolioValue) * 100 : 0);
+  const corrW = weights.filter((w) => w.corr !== null);
+  const corrTotal = corrW.reduce((s, w) => s + w.value, 0);
+  const btcCorrelation = corrTotal > 0 ? corrW.reduce((s, w) => s + w.corr! * w.value, 0) / corrTotal : null;
+  const largest = weights[0] ? { symbol: weights[0].symbol, percent: pct(weights[0].value) } : null;
+  const top3Percent = pct(weights.slice(0, 3).reduce((s, w) => s + w.value, 0));
+  const warnings: string[] = [];
+  if (largest && largest.percent > 30) warnings.push(`${largest.symbol} is ${largest.percent.toFixed(0)}% of the portfolio — one bad move hurts a lot.`);
+  if (pct(loss) > 10) warnings.push(`Hitting every stop would cost ${pct(loss).toFixed(1)}% of the portfolio; consider smaller positions or tighter stops.`);
+  if (btcCorrelation !== null && btcCorrelation > 0.8 && held.length >= 3) warnings.push("Holdings move almost in lockstep with BTC: diversification is limited.");
+  if (held.length && pct(cash) < 5) warnings.push("Under 5% cash: no room to buy dips.");
+  return {
+    lossAtStops: loss,
+    lossAtStopsPercent: pct(loss),
+    unprotected,
+    largestPosition: largest,
+    top3Percent,
+    cashPercent: pct(cash),
+    btcCorrelation,
+    warnings,
+  };
 }
 
 /** Cheap pre-rank over the whole scan, to pick which pairs get the full (network-heavy) analysis. */

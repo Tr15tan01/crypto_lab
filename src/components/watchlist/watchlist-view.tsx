@@ -63,9 +63,9 @@ export function WatchlistView({ initial }: { initial: Payload }) {
           />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-[13px]">
+            <table className="w-full min-w-[980px] text-[0.8125rem]">
               <thead>
-                <tr className="border-b border-border text-left text-[11px] text-muted">
+                <tr className="border-b border-border text-left text-[0.6875rem] text-muted">
                   <th className="px-4 py-2 font-medium">#</th>
                   <th className="px-3 py-2 font-medium">Pair</th>
                   <th className="px-3 py-2 text-right font-medium">Price</th>
@@ -85,19 +85,19 @@ export function WatchlistView({ initial }: { initial: Payload }) {
                       <Link href={`/crypto/${r.symbol}`} className="font-medium hover:text-accent">
                         {r.baseAsset}<span className="text-faint">/{r.quoteAsset}</span>
                       </Link>
-                      {r.name ? <span className="block text-[11px] text-muted">{r.name}</span> : null}
+                      {r.name ? <span className="block text-[0.6875rem] text-muted">{r.name}</span> : null}
                       {r.tradable === false ? <Badge tone="down" className="mt-1">No longer tradable on Binance</Badge> : null}
                     </td>
                     <td className="num px-3 py-2.5 text-right">{formatPrice(r.price)}</td>
                     <td className="px-3 py-2.5 text-right"><ChangeText value={r.change24h} /></td>
                     <td className="px-3 py-2.5 text-right">
                       <ChangeText value={r.changeSinceAdded} />
-                      <span className="block text-[11px] text-faint">from {formatPrice(r.priceAtAdd)}</span>
+                      <span className="block text-[0.6875rem] text-faint">from {formatPrice(r.priceAtAdd)}</span>
                     </td>
                     <td className="num px-3 py-2.5 text-right">
                       {r.targetPrice ? formatPrice(r.targetPrice) : "—"}
                       {r.distanceToTarget !== null ? (
-                        <span className="block text-[11px] text-muted">{r.distanceToTarget >= 0 ? "+" : ""}{r.distanceToTarget.toFixed(1)}% away</span>
+                        <span className="block text-[0.6875rem] text-muted">{r.distanceToTarget >= 0 ? "+" : ""}{r.distanceToTarget.toFixed(1)}% away</span>
                       ) : null}
                     </td>
                     <td className="max-w-[280px] px-3 py-2.5 text-xs text-muted">

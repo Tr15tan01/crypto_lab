@@ -95,9 +95,9 @@ export default async function AnalyticsPage() {
         <Panel>
           <PanelHeader title="Performance by cryptocurrency" description="Realized plus current unrealized P/L" />
           {a.bySymbol.length ? (
-            <table className="w-full text-[13px]">
+            <table className="w-full text-[0.8125rem]">
               <thead>
-                <tr className="border-b border-border text-left text-[11px] text-muted">
+                <tr className="border-b border-border text-left text-[0.6875rem] text-muted">
                   <th className="px-4 py-2 font-medium">Pair</th>
                   <th className="px-3 py-2 text-right font-medium">Positions</th>
                   <th className="px-3 py-2 text-right font-medium">Realized</th>
@@ -126,9 +126,9 @@ export default async function AnalyticsPage() {
             <EmptyState title="No AI reports yet" description="Generate analysis reports from a coin's page; each is evaluated at 1h, 24h, 7d and 30d." />
           ) : (
             <>
-              <table className="w-full text-[13px]">
+              <table className="w-full text-[0.8125rem]">
                 <thead>
-                  <tr className="border-b border-border text-left text-[11px] text-muted">
+                  <tr className="border-b border-border text-left text-[0.6875rem] text-muted">
                     <th className="px-4 py-2 font-medium">Horizon</th>
                     <th className="px-3 py-2 text-right font-medium">Evaluated</th>
                     <th className="px-3 py-2 text-right font-medium">Correct</th>
@@ -141,7 +141,7 @@ export default async function AnalyticsPage() {
                 <tbody>
                   {a.ai.byHorizon.map((h) => (
                     <tr key={h.horizon} className="border-b border-border/70 last:border-0">
-                      <td className="px-4 py-2">{h.horizon} <span className="text-[11px] text-faint">±{h.thresholdPercent}%</span></td>
+                      <td className="px-4 py-2">{h.horizon} <span className="text-[0.6875rem] text-faint">±{h.thresholdPercent}%</span></td>
                       <td className="num px-3 py-2 text-right">{h.evaluated}</td>
                       <td className="num px-3 py-2 text-right">{h.correct}</td>
                       <td className="num px-3 py-2 text-right">{h.incorrect}</td>
@@ -154,7 +154,7 @@ export default async function AnalyticsPage() {
                   ))}
                 </tbody>
               </table>
-              <p className="px-4 py-3 text-[11px] text-faint">
+              <p className="px-4 py-3 text-[0.6875rem] text-faint">
                 {a.ai.reports} reports, {a.ai.withBias} with a stated lean. Hit rate counts only correct vs wrong verdicts. <Link href="/research/reports" className="text-muted hover:text-fg">All reports →</Link>
               </p>
             </>
@@ -166,9 +166,9 @@ export default async function AnalyticsPage() {
         <PanelHeader title="Positions (open → closed)" description="Each round runs from the first buy until the position is fully sold" />
         {a.rounds.length ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-[13px]">
+            <table className="w-full min-w-[760px] text-[0.8125rem]">
               <thead>
-                <tr className="border-b border-border text-left text-[11px] text-muted">
+                <tr className="border-b border-border text-left text-[0.6875rem] text-muted">
                   <th className="px-4 py-2 font-medium">Pair</th>
                   <th className="px-3 py-2 font-medium">Opened</th>
                   <th className="px-3 py-2 font-medium">Closed</th>
@@ -189,7 +189,7 @@ export default async function AnalyticsPage() {
                     <td className="num px-3 py-2 text-right">{formatUsd(r.invested)}</td>
                     <td className="px-4 py-2 text-right">
                       <ChangeText value={r.sellCount ? r.realizedPnL : null} format="usd" />
-                      {r.realizedReturnPercent !== null ? <span className="block text-[11px] text-muted">{formatPercent(r.realizedReturnPercent)}</span> : null}
+                      {r.realizedReturnPercent !== null ? <span className="block text-[0.6875rem] text-muted">{formatPercent(r.realizedReturnPercent)}</span> : null}
                     </td>
                   </tr>
                 ))}

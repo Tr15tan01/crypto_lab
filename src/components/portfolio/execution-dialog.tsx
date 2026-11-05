@@ -143,7 +143,7 @@ export function ExecutionDialog({ tx }: { tx: ExecutionTx }) {
           {tx.executionHistory.length > 1 ? (
             <div className="rounded-md border border-border p-2.5">
               <p className="label-caps mb-1.5">Status history</p>
-              <ul className="space-y-1 text-[11px] text-muted">
+              <ul className="space-y-1 text-[0.6875rem] text-muted">
                 {tx.executionHistory.map((h, i) => (
                   <li key={i}>
                     {formatDateTime(h.recordedAt)} — {EXECUTION_LABEL[h.status]}

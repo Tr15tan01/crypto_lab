@@ -1,4 +1,6 @@
+import { after } from "next/server";
 import { withApi } from "@/lib/api/handler";
+import { getSignalBacktest } from "@/services/backtest/backtest-service";
 import { getAutopilotPlan } from "@/services/autopilot/autopilot-service";
 import { serialize } from "@/types/serialized";
 
@@ -21,5 +23,7 @@ export const GET = withApi(async ({ req, user }) => {
     },
     q.get("refresh") === "1",
   );
+  // Warm the Signal Lab backtest so the next plan can weight signals by their track record.
+  if (!plan.signalLabAvailable) after(() => getSignalBacktest().catch(() => null));
   return serialize(plan);
 });

@@ -11,6 +11,7 @@ import {
   Settings,
   Trophy,
   Bot,
+  FlaskConical,
   type LucideIcon,
 } from "lucide-react";
 
@@ -26,6 +27,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/market", label: "Market Scanner", icon: ScanSearch, match: ["/crypto"] },
   { href: "/discover", label: "Discovery", icon: Telescope },
   { href: "/autopilot", label: "Autopilot", icon: Bot },
+  { href: "/signals", label: "Signal Lab", icon: FlaskConical },
   { href: "/traders", label: "Top Traders", icon: Trophy },
   { href: "/watchlist", label: "Watchlist", icon: Star },
   { href: "/portfolio", label: "Portfolio", icon: Wallet },

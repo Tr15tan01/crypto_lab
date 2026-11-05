@@ -168,7 +168,7 @@ export function JournalEntryCard({ row, showSymbol = true }: { row: JournalRowDa
       <header className="flex flex-wrap items-center gap-2">
         <Badge tone={DECISION_TONE[e.decisionType]}>{e.decisionType}</Badge>
         {showSymbol ? (
-          <Link href={`/crypto/${e.symbol}`} className="text-[13px] font-medium hover:text-accent">{e.symbol}</Link>
+          <Link href={`/crypto/${e.symbol}`} className="text-[0.8125rem] font-medium hover:text-accent">{e.symbol}</Link>
         ) : null}
         <span className="text-xs text-muted">{formatDateTime(e.timestamp)}</span>
         {row.transaction ? <ExecutionBadge status={row.transaction.executionStatus as ExecutionStatus} /> : <Badge>Decision only</Badge>}
@@ -181,7 +181,7 @@ export function JournalEntryCard({ row, showSymbol = true }: { row: JournalRowDa
         </span>
       </header>
       {e.thesis || e.reason ? (
-        <div className="mt-2.5 space-y-1.5 text-[13px] leading-relaxed">
+        <div className="mt-2.5 space-y-1.5 text-[0.8125rem] leading-relaxed">
           {e.thesis ? <p><span className="text-muted">Thesis · </span>{e.thesis}</p> : null}
           {e.reason ? <p><span className="text-muted">Reason · </span>{e.reason}</p> : null}
           {e.riskAssessment ? <p><span className="text-muted">Risk · </span>{e.riskAssessment}</p> : null}
@@ -212,7 +212,7 @@ export function JournalEntryCard({ row, showSymbol = true }: { row: JournalRowDa
         <button
           type="button"
           onClick={() => setShowHistory((v) => !v)}
-          className="mt-3 flex items-center gap-1 text-[11px] text-muted hover:text-fg"
+          className="mt-3 flex items-center gap-1 text-[0.6875rem] text-muted hover:text-fg"
           aria-expanded={showHistory}
         >
           <History className="size-3" /> {e.reviews.length} review{e.reviews.length === 1 ? "" : "s"} · {e.revisions.length} edit
@@ -220,7 +220,7 @@ export function JournalEntryCard({ row, showSymbol = true }: { row: JournalRowDa
         </button>
       ) : null}
       {showHistory ? (
-        <ul className={cn("mt-2 space-y-1.5 border-l border-border pl-3 text-[11px] text-muted")}>
+        <ul className={cn("mt-2 space-y-1.5 border-l border-border pl-3 text-[0.6875rem] text-muted")}>
           {e.reviews.map((r, i) => (
             <li key={`r${i}`}>
               {formatDateTime(r.reviewedAt)} — reviewed as <b className="text-fg">{VERDICT_LABEL[r.verdict]}</b> at {formatPrice(r.priceAtReview)}

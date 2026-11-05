@@ -116,7 +116,7 @@ export function AlertsPanel({
               <span className="min-w-0">
                 {showSymbol ? <span className="mr-1.5 font-medium">{a.symbol}</span> : null}
                 <span className="text-fg">{describe(a)}</span>
-                <span className="block text-[11px] text-faint">
+                <span className="block text-[0.6875rem] text-faint">
                   {a.status === "triggered" && a.triggeredAt
                     ? `Triggered ${formatDateTime(a.triggeredAt)} at ${formatPrice(a.triggerPrice)}`
                     : `Created ${formatDateTime(a.createdAt)}`}

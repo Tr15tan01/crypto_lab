@@ -179,9 +179,9 @@ function ScreenTable({
   }
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1040px] text-[13px]">
+      <table className="w-full min-w-[1040px] text-[0.8125rem]">
         <thead>
-          <tr className="border-y border-border text-left text-[11px] text-muted">
+          <tr className="border-y border-border text-left text-[0.6875rem] text-muted">
             <th className="w-10 px-3 py-2 font-medium" aria-label="Watchlist" />
             <th className="px-3 py-2 font-medium">Pair</th>
             <th className="px-3 py-2 text-right font-medium">Price</th>
@@ -327,7 +327,7 @@ function ShortlistPanel({
       ) : null}
       {error ? <Notice tone="down" className="m-4">{error}</Notice> : null}
       {candidates.length ? (
-        <p className="border-b border-border px-4 py-2 text-[11px] text-muted">
+        <p className="border-b border-border px-4 py-2 text-[0.6875rem] text-muted">
           Next review would cover: {candidates.map((c) => c.baseAsset).join(", ")}
         </p>
       ) : null}
@@ -344,7 +344,7 @@ function ShortlistPanel({
         />
       ) : (
         <div className="p-4">
-          <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] text-muted">
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-[0.6875rem] text-muted">
             {history.length > 1 ? (
               <Select
                 value={selected._id}
@@ -449,7 +449,7 @@ export function DiscoveryWorkspace({ aiConfigured, aiProblem }: { aiConfigured: 
           >
             <TriangleAlert className="size-3.5" /> Hide flagged risks
           </Button>
-          <div className="ml-auto flex items-center gap-3 text-[11px] text-muted">
+          <div className="ml-auto flex items-center gap-3 text-[0.6875rem] text-muted">
             {btc ? (
               <span>
                 BTC 7d <ChangeText value={btc.return7d} showIcon={false} /> · 30d <ChangeText value={btc.return30d} showIcon={false} />
@@ -461,7 +461,7 @@ export function DiscoveryWorkspace({ aiConfigured, aiProblem }: { aiConfigured: 
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-[11px] text-muted">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-[0.6875rem] text-muted">
           <span>
             {data
               ? `${data.universe.scanned} USDT pairs with ≥ ${formatCompact(data.universe.minQuoteVolume)} daily volume scanned` +
@@ -516,7 +516,7 @@ export function DiscoveryWorkspace({ aiConfigured, aiProblem }: { aiConfigured: 
                 <p className="px-4 pb-3 text-xs text-muted">{s.description}</p>
                 <ScreenTable rows={results[s.key].slice(0, MAX_ROWS)} watched={watched} pending={pending} onWatch={(sym) => void addToWatchlist(sym)} />
                 {results[s.key].length > MAX_ROWS ? (
-                  <p className="px-4 py-2 text-[11px] text-faint">
+                  <p className="px-4 py-2 text-[0.6875rem] text-faint">
                     Showing the first {MAX_ROWS} of {results[s.key].length}. Raise the volume floor to narrow the list.
                   </p>
                 ) : null}
@@ -536,7 +536,7 @@ export function DiscoveryWorkspace({ aiConfigured, aiProblem }: { aiConfigured: 
       ) : null}
 
       {data ? (
-        <p className="text-[11px] text-faint">
+        <p className="text-[0.6875rem] text-faint">
           Signal definitions:{" "}
           {Object.values(SIGNAL_INFO)
             .map((s) => `${s.label}: ${s.description}`)

@@ -181,7 +181,7 @@ export function TradeDialog({
               <div>
                 <p className="text-muted">Market price</p>
                 <p className="num mt-0.5 text-sm">{formatPrice(price)}</p>
-                <p className={cn("mt-0.5 text-[11px]", stale ? "text-warn" : "text-faint")}>
+                <p className={cn("mt-0.5 text-[0.6875rem]", stale ? "text-warn" : "text-faint")}>
                   {stale ? "Not live · " : ""}
                   {priceAt ? formatDateTime(priceAt) : "—"}
                 </p>
@@ -190,7 +190,7 @@ export function TradeDialog({
                 <div>
                   <p className="text-muted">Available virtual cash</p>
                   <p className="num mt-0.5 text-sm">{formatUsd(ctx.availableBalance)}</p>
-                  <p className="mt-0.5 text-[11px] text-faint">Fee {ctx.feeRatePercent}%</p>
+                  <p className="mt-0.5 text-[0.6875rem] text-faint">Fee {ctx.feeRatePercent}%</p>
                 </div>
               ) : (
                 <div>
@@ -198,7 +198,7 @@ export function TradeDialog({
                   <p className="num mt-0.5 text-sm">
                     {formatQuantity(ctx.holdingQuantity)} {ctx.baseAsset}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-faint">Avg cost {formatPrice(ctx.averageCost)}</p>
+                  <p className="mt-0.5 text-[0.6875rem] text-faint">Avg cost {formatPrice(ctx.averageCost)}</p>
                 </div>
               )}
             </div>
@@ -229,7 +229,7 @@ export function TradeDialog({
                         <button
                           key={f}
                           type="button"
-                          className="rounded-sm border border-border px-1.5 py-0.5 text-[11px] text-muted hover:text-fg"
+                          className="rounded-sm border border-border px-1.5 py-0.5 text-[0.6875rem] text-muted hover:text-fg"
                           onClick={() => setAmount(String(Math.floor((ctx.availableBalance / (1 + feeRate)) * f * 100) / 100))}
                         >
                           {f === 1 ? "Max" : `${f * 100}%`}
@@ -252,7 +252,7 @@ export function TradeDialog({
                         <button
                           key={f}
                           type="button"
-                          className="rounded-sm border border-border px-1.5 py-0.5 text-[11px] text-muted hover:text-fg"
+                          className="rounded-sm border border-border px-1.5 py-0.5 text-[0.6875rem] text-muted hover:text-fg"
                           onClick={() => {
                             setSellAll(false);
                             setAmount(String(round(ctx.holdingQuantity * f, 10)));
@@ -265,7 +265,7 @@ export function TradeDialog({
                         type="button"
                         aria-pressed={sellAll}
                         className={cn(
-                          "rounded-sm border px-1.5 py-0.5 text-[11px]",
+                          "rounded-sm border px-1.5 py-0.5 text-[0.6875rem]",
                           sellAll ? "border-accent/50 text-accent" : "border-border text-muted hover:text-fg",
                         )}
                         onClick={() => setSellAll((v) => !v)}
@@ -315,7 +315,7 @@ export function TradeDialog({
                   </label>
                 ) : null}
                 {error ? <Notice tone="down">{error}</Notice> : null}
-                <p className="flex items-center gap-1.5 text-[11px] text-faint">
+                <p className="flex items-center gap-1.5 text-[0.6875rem] text-faint">
                   <FlaskConical className="size-3" /> The final price is re-checked on the server when you confirm.
                 </p>
                 <div className="flex justify-end gap-2">
@@ -385,10 +385,10 @@ function Estimate({
         </div>
       ))}
       {side === "sell" ? (
-        <p className="pt-1 text-[11px] text-faint">Profit is measured against your average cost (fees included).</p>
+        <p className="pt-1 text-[0.6875rem] text-faint">Profit is measured against your average cost (fees included).</p>
       ) : null}
       {emphasize && side === "buy" && estimate ? (
-        <p className="flex items-center gap-1 pt-1 text-[11px] text-faint">
+        <p className="flex items-center gap-1 pt-1 text-[0.6875rem] text-faint">
           <TriangleAlert className="size-3" /> Quantity is final only after the server re-prices the order.
         </p>
       ) : null}

@@ -33,7 +33,7 @@ export function StrategyBadge({ status, score }: { status: "changing" | "stable"
   if (status === "insufficient_data") {
     return (
       <Tooltip content="Needs at least 3 trades in the last 14 days and 3 in the 14–90 days before.">
-        <span className="cursor-help text-[11px] text-faint">not enough trades</span>
+        <span className="cursor-help text-[0.6875rem] text-faint">not enough trades</span>
       </Tooltip>
     );
   }

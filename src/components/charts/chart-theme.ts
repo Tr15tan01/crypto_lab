@@ -24,7 +24,7 @@ export const CHART = {
   muted: "var(--color-chart-muted)",
   cash: "var(--color-chart-cash)",
   hover: "var(--color-hover-overlay)",
-  tick: { fill: "var(--color-muted)", fontSize: 11, fontFamily: "var(--font-mono)" },
+  tick: { fill: "var(--color-muted)", fontSize: "0.6875rem", fontFamily: "var(--font-mono)" },
 } as const;
 
 export function formatAxisTime(ms: number, spanMs: number): string {

@@ -21,7 +21,7 @@ function Section({ id, title, description, children }: { id: string; title: stri
   return (
     <Panel id={id} className="scroll-mt-20">
       <PanelHeader title={title} description={description} />
-      <PanelBody className="space-y-3 text-[13px] leading-relaxed text-fg/90">{children}</PanelBody>
+      <PanelBody className="space-y-3 text-[0.8125rem] leading-relaxed text-fg/90">{children}</PanelBody>
     </Panel>
   );
 }
@@ -39,7 +39,7 @@ function Steps({ items }: { items: React.ReactNode[] }) {
     <ol className="space-y-2">
       {items.map((item, i) => (
         <li key={i} className="flex gap-3">
-          <span className="num mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-accent/30 bg-accent/10 text-[11px] text-accent">
+          <span className="num mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border border-accent/30 bg-accent/10 text-[0.6875rem] text-accent">
             {i + 1}
           </span>
           <div className="min-w-0">{item}</div>
@@ -109,7 +109,7 @@ export default async function GuidePage() {
       <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)]">
         <nav aria-label="Guide sections" className="xl:sticky xl:top-5 xl:self-start">
           <Panel>
-            <ul className="p-2 text-[13px]">
+            <ul className="p-2 text-[0.8125rem]">
               {SECTIONS.map((s) => (
                 <li key={s.id}>
                   <a href={`#${s.id}`} className="block rounded-md px-2.5 py-1.5 text-muted transition-colors hover:bg-surface-2 hover:text-fg">
@@ -179,9 +179,9 @@ export default async function GuidePage() {
               built from these signals:
             </p>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[520px] text-[13px]">
+              <table className="w-full min-w-[520px] text-[0.8125rem]">
                 <thead>
-                  <tr className="border-b border-border text-left text-[11px] text-muted">
+                  <tr className="border-b border-border text-left text-[0.6875rem] text-muted">
                     <th className="py-2 pr-4 font-medium">Signal</th>
                     <th className="py-2 font-medium">Fires when</th>
                   </tr>
@@ -199,7 +199,7 @@ export default async function GuidePage() {
             <div className="grid gap-3 lg:grid-cols-2">
               {SCREEN_GUIDE.map((s) => (
                 <div key={s.name} className="rounded-md border border-border bg-bg p-3">
-                  <h3 className="text-[13px] font-semibold text-fg">{s.name}</h3>
+                  <h3 className="text-[0.8125rem] font-semibold text-fg">{s.name}</h3>
                   <p className="mt-1 text-xs text-muted">{s.what}</p>
                   <p className="mt-2 text-xs">
                     <span className="text-up">Why it matters: </span>
@@ -280,6 +280,21 @@ export default async function GuidePage() {
                   "The candidate screens described above, with one-click watchlisting and AI shortlist reviews.",
                 ],
                 [
+                  "Autopilot",
+                  "/autopilot",
+                  "A plan for the paper portfolio: buy, watch or avoid for new coins and hold, add, trim or sell for positions, with timing, entry zone, target, stop and a risk-based size. Also shows portfolio risk (loss if every stop is hit, concentration, BTC correlation). One click sets price alerts at the stop and target; calls are scored after 7 days.",
+                ],
+                [
+                  "Signal Lab",
+                  "/signals",
+                  "A backtest of every discovery signal over ~2.5 years: win rate, median return and result vs BTC 7 and 30 days after it fired, compared with a random-coin baseline. Tells you which signals have actually worked; Autopilot uses it to weight them.",
+                ],
+                [
+                  "Top Traders",
+                  "/traders",
+                  "Discover Binance copy-trading leaders or track anyone manually: returns, drawdown, coins bought and sold, entries, exits, holding times and whether their strategy is changing.",
+                ],
+                [
                   "Coin pages",
                   "/market",
                   "Click any pair. Live price, candlestick or line charts from 1-minute to weekly candles, EMA and Bollinger overlays, an indicator panel (RSI, MACD, moving averages, volume, volatility, support and resistance), first Binance trading date, simulated buy and sell, alerts, watchlist notes, journal entries and AI reports for that pair.",
@@ -326,6 +341,9 @@ export default async function GuidePage() {
             <p className="text-muted">
               <strong className="text-fg">Alerts</strong> (price above/below, % move, position profit/loss) are checked while the app
               is open and once a day by the background job. Triggered alerts appear under the bell in the top bar.
+            </p>
+            <p className="text-muted">
+              <strong className="text-fg">Quick search:</strong> press <kbd className="rounded-sm border border-border-strong bg-surface-3 px-1 font-mono text-[0.6875rem]">Ctrl K</kbd> (⌘K on a Mac) anywhere to jump to a coin or a page.
             </p>
           </Section>
 

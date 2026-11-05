@@ -224,7 +224,7 @@ export function PriceChart({ symbol, initialPeriod = "30d" }: { symbol: string; 
               aria-pressed={overlays.has(o.key)}
               onClick={() => toggleOverlay(o.key)}
               className={cn(
-                "flex h-6 items-center gap-1.5 rounded-sm border px-2 text-[11px] transition-colors",
+                "flex h-6 items-center gap-1.5 rounded-sm border px-2 text-[0.6875rem] transition-colors",
                 overlays.has(o.key) ? "border-border-strong bg-surface-3 text-fg" : "border-transparent text-faint hover:text-muted",
               )}
             >
@@ -342,7 +342,7 @@ export function PriceChart({ symbol, initialPeriod = "30d" }: { symbol: string; 
               <Bar dataKey="volume" fill={CHART.neutral} fillOpacity={0.55} isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
-          <p className="px-3 pt-1 text-[11px] text-faint">
+          <p className="px-3 pt-1 text-[0.6875rem] text-faint">
             Volume (base asset) · overlays are calculated on the candles shown
             {insufficient200 ? " · EMA 200 needs 200 candles and is incomplete for this range" : ""}
           </p>

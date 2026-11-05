@@ -44,7 +44,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           <LoginForm callbackUrl={callbackUrl} initialError={errorKey ? (ERRORS[errorKey] ?? "Sign-in failed.") : null} />
           {google ? (
             <>
-              <div className="my-5 flex items-center gap-3 text-[11px] text-faint">
+              <div className="my-5 flex items-center gap-3 text-[0.6875rem] text-faint">
                 <span className="h-px flex-1 bg-border" /> or <span className="h-px flex-1 bg-border" />
               </div>
               <form action={googleLoginAction}>
@@ -62,7 +62,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
             </>
           ) : null}
         </div>
-        <p className="mt-6 text-center text-[11px] leading-relaxed text-faint">
+        <p className="mt-6 text-center text-[0.6875rem] leading-relaxed text-faint">
           Single-user application. There is no registration — access is limited to the configured administrator.
         </p>
       </div>

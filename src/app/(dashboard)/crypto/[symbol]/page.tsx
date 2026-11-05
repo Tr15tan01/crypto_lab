@@ -188,7 +188,7 @@ export default async function CryptoPage({ params }: PageProps<"/crypto/[symbol]
                     <dt className="text-muted">Unrealized P/L</dt>
                     <dd className="text-sm">
                       <ChangeText value={unrealized} format="usd" />{" "}
-                      <span className="text-[11px]">
+                      <span className="text-[0.6875rem]">
                         ({formatPercent(unrealized !== null && holding.investedValue ? (unrealized / holding.investedValue) * 100 : null)})
                       </span>
                     </dd>

@@ -8,6 +8,7 @@ import { apiFetch } from "@/lib/client/api";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, Tooltip } from "@/components/ui/radix";
 import { cn, formatDateTime, formatRelative } from "@/lib/utils/format";
 import { ThemeSwitch } from "./theme-switch";
+import { CommandPalette } from "./command-palette";
 
 interface MarketStatus {
   state: "live" | "stale" | "unavailable";
@@ -40,7 +41,7 @@ function MarketStatusPill() {
         </span>
       }
     >
-      <span className="flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[11px] text-muted">
+      <span className="flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[0.6875rem] text-muted">
         <span className={cn("size-1.5 rounded-full", tone, state === "live" && "animate-pulse-soft")} />
         Binance {label}
         {data?.lastUpdatedAt && state !== "live" ? (
@@ -94,7 +95,7 @@ function Notifications() {
         >
           <Bell className="size-4" />
           {data?.unread ? (
-            <span className="absolute -right-0.5 -top-0.5 flex min-w-3.5 items-center justify-center rounded-full bg-accent px-1 font-mono text-[9px] font-semibold leading-3.5 text-accent-fg">
+            <span className="absolute -right-0.5 -top-0.5 flex min-w-3.5 items-center justify-center rounded-full bg-accent px-1 font-mono text-[0.5625rem] font-semibold leading-3.5 text-accent-fg">
               {data.unread > 9 ? "9+" : data.unread}
             </span>
           ) : null}
@@ -103,7 +104,7 @@ function Notifications() {
       <DropdownMenuContent className="w-80 p-0">
         <div className="flex items-center justify-between border-b border-border px-3 py-2">
           <span className="text-xs font-medium">Alerts</span>
-          <Link href="/watchlist#alerts" className="text-[11px] text-muted hover:text-fg">
+          <Link href="/watchlist#alerts" className="text-[0.6875rem] text-muted hover:text-fg">
             Manage
           </Link>
         </div>
@@ -113,8 +114,8 @@ function Notifications() {
               <li key={n.id} className="border-b border-border px-3 py-2 last:border-0">
                 <Link href={`/crypto/${n.symbol}`} className="block">
                   <p className={cn("text-xs", n.readAt ? "text-muted" : "font-medium text-fg")}>{n.title}</p>
-                  <p className="mt-0.5 text-[11px] text-muted">{n.body}</p>
-                  <p className="mt-0.5 text-[10px] text-faint">{formatDateTime(n.createdAt)}</p>
+                  <p className="mt-0.5 text-[0.6875rem] text-muted">{n.body}</p>
+                  <p className="mt-0.5 text-[0.625rem] text-faint">{formatDateTime(n.createdAt)}</p>
                 </Link>
               </li>
             ))}
@@ -131,13 +132,14 @@ export function TopBar() {
   return (
     <div className="sticky top-12 z-30 flex h-11 items-center justify-between border-b border-border bg-bg/90 px-4 backdrop-blur sm:px-6 lg:top-0">
       <Tooltip content="Every trade in this app is simulated with theoretical dollars. Nothing is sent to Binance.">
-        <span className="flex items-center gap-1.5 text-[11px] text-muted">
+        <span className="flex items-center gap-1.5 text-[0.6875rem] text-muted">
           <FlaskConical className="size-3.5 text-accent" />
           <span className="hidden sm:inline">Paper trading · simulated funds only</span>
           <span className="sm:hidden">Simulated</span>
         </span>
       </Tooltip>
       <div className="flex items-center gap-2">
+        <CommandPalette />
         <MarketStatusPill />
         <ThemeSwitch />
         <Notifications />

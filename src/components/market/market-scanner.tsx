@@ -226,7 +226,7 @@ export function MarketScanner() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between px-4 py-2 text-[11px] text-muted">
+        <div className="flex items-center justify-between px-4 py-2 text-[0.6875rem] text-muted">
           <span>
             {data ? `${filtered.length.toLocaleString()} of ${data.rows.length.toLocaleString()} tradable pairs` : "Loading pairs…"}
           </span>
@@ -265,9 +265,9 @@ export function MarketScanner() {
           <EmptyState title="No pairs match these filters" description="Clear a filter or broaden the price/volume range." />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-[13px]">
+            <table className="w-full min-w-[860px] text-[0.8125rem]">
               <thead>
-                <tr className="border-y border-border text-left text-[11px] text-muted">
+                <tr className="border-y border-border text-left text-[0.6875rem] text-muted">
                   <th className="w-10 px-3 py-2 font-medium" aria-label="Watchlist" />
                   <th className="px-3 py-2 font-medium">
                     <button type="button" className="inline-flex items-center gap-1 hover:text-fg" onClick={() => setSort("alpha")}>

@@ -104,7 +104,7 @@ export default async function DashboardPage() {
                 <li key={n._id.toString()} className="border-b border-border/70 px-4 py-2 last:border-0">
                   <Link href={`/crypto/${n.symbol}`} className="block text-xs hover:text-accent">
                     <span className={n.readAt ? "text-muted" : "font-medium"}>{n.title}</span>
-                    <span className="block text-[11px] text-faint">{n.body} · {formatRelative(n.createdAt)}</span>
+                    <span className="block text-[0.6875rem] text-faint">{n.body} · {formatRelative(n.createdAt)}</span>
                   </Link>
                 </li>
               ))}
@@ -124,7 +124,7 @@ export default async function DashboardPage() {
         <Panel>
           <PanelHeader title="Open positions" actions={<Viewall href="/portfolio" />} />
           {v?.positions.length ? (
-            <table className="w-full text-[13px]">
+            <table className="w-full text-[0.8125rem]">
               <tbody>
                 {v.positions.map((p) => (
                   <tr key={p.symbol} className="border-b border-border/70 last:border-0">
@@ -147,7 +147,7 @@ export default async function DashboardPage() {
         <Panel>
           <PanelHeader title="Watchlist" actions={<Viewall href="/watchlist" />} />
           {watchRes.data?.rows.length ? (
-            <table className="w-full text-[13px]">
+            <table className="w-full text-[0.8125rem]">
               <tbody>
                 {watchRes.data.rows.slice(0, 8).map((w) => (
                   <tr key={w.id} className="border-b border-border/70 last:border-0">
