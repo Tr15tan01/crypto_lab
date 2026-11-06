@@ -13,6 +13,7 @@ import { listSnapshots, maybeCreateScheduledSnapshot } from "@/services/portfoli
 import { listWatchlist } from "@/services/watchlist/watchlist-service";
 import { listResearch } from "@/services/research/research-service";
 import { listNotifications } from "@/services/alerts/alerts-service";
+import { latestRun } from "@/services/learning/learning-service";
 import { serialize } from "@/types/serialized";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge, EmptyState, Notice, Panel, PanelBody, PanelHeader } from "@/components/ui/primitives";
@@ -36,7 +37,7 @@ export default async function DashboardPage() {
   const user = await requireUser();
   after(() => maybeCreateScheduledSnapshot(user.id).catch(() => false));
 
-  const [stateRes, marketRes, watchRes, txRes, researchRes, notifRes, alertCountRes] = await Promise.all([
+  const [stateRes, marketRes, watchRes, txRes, researchRes, notifRes, alertCountRes, learnRes] = await Promise.all([
     safe(async () => {
       const state = await getPortfolioState(user.id);
       const snaps = await listSnapshots(user.id, state.portfolio._id, new Date(requestTime() - 90 * 86_400_000));
@@ -51,7 +52,9 @@ export default async function DashboardPage() {
     safe(() => listResearch(user.id, { limit: 5 }), "dashboard.research"),
     safe(() => listNotifications(user.id), "dashboard.notifications"),
     safe(async () => (await getCollections()).alerts.countDocuments({ userId: user.id, status: "active" }), "dashboard.alerts"),
+    safe(() => latestRun(), "dashboard.learning"),
   ]);
+  const learned = learnRes.data;
 
   const s = stateRes.data?.state;
   const v = s?.valuation;
@@ -118,6 +121,35 @@ export default async function DashboardPage() {
       <Panel className="mb-4">
         <PanelHeader title="Market overview" actions={<Viewall href="/market" />} />
         <MarketOverviewPanel initial={marketRes.data ? serialize(marketRes.data) : null} initialError={marketRes.error} />
+      </Panel>
+
+      <Panel className="mb-4">
+        <PanelHeader
+          title="Learned model · most likely to beat BTC this week"
+          description={
+            learned
+              ? `Trained ${formatRelative(learned.createdAt)} on ${learned.data.samples.toLocaleString("en-US")} examples · out-of-sample AUC ${learned.test.metrics.auc.toFixed(3)} · typical ${(learned.test.metrics.baseRate * 100).toFixed(0)}%`
+              : "The model trains itself on market history; open Learning to start the first run."
+          }
+          actions={<Viewall href="/learning" />}
+        />
+        {learned?.picks.top.length ? (
+          <PanelBody className="flex flex-wrap gap-2">
+            {learned.picks.top.slice(0, 10).map((p) => (
+              <Link
+                key={p.symbol}
+                href={`/crypto/${p.symbol}`}
+                title={p.drivers.map((d) => `${d.contribution >= 0 ? "+" : "−"} ${d.label}`).join(" · ")}
+                className="flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs transition-colors hover:border-accent/50"
+              >
+                <span className="font-mono font-semibold">{p.symbol.replace(/USDT$/, "")}</span>
+                <span className="num text-up">{Math.round(p.probability * 100)}%</span>
+              </Link>
+            ))}
+          </PanelBody>
+        ) : (
+          <PanelBody><p className="text-xs text-muted">No trained model yet.</p></PanelBody>
+        )}
       </Panel>
 
       <div className="mb-4 grid gap-4 xl:grid-cols-2">

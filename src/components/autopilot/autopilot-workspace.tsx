@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowDownRight, ArrowUpRight, ChevronDown, Eye, FlaskConical, Gauge, LineChart, RefreshCw, ShieldAlert, Users } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, ChevronDown, Eye, FlaskConical, Gauge, GraduationCap, LineChart, RefreshCw, ShieldAlert, Users } from "lucide-react";
 import { useApi } from "@/hooks/use-api";
 import { apiFetch, ApiClientError } from "@/lib/client/api";
 import { Badge, Button, EmptyState, Notice, Panel, PanelBody, PanelHeader, Skeleton } from "@/components/ui/primitives";
@@ -11,6 +11,8 @@ import { Freshness } from "@/components/market/indicators";
 import { TradeDialog, type TradeContext } from "@/components/portfolio/trade-dialog";
 import { AskAIButton } from "@/components/research/ask-ai-button";
 import { LevelAlertsButton } from "@/components/alerts/level-alerts-button";
+import { ModelProbability, type ModelView } from "@/components/learning/model-view-card";
+import { AccuracyGauge } from "@/components/learning/accuracy-gauge";
 import { OutcomeBadge, type Prediction } from "@/components/chat/verdict-card";
 import { SIGNAL_INFO, type DiscoverySignal } from "@/services/discovery/signals";
 import { cn, formatPercent, formatPrice, formatRelative, formatUsd } from "@/lib/utils/format";
@@ -41,6 +43,8 @@ interface Rec {
   cautions: string[];
   holding: { quantity: number; averageCost: number; marketValue: number; pnlPercent: number } | null;
   btcCorrelation?: number | null;
+  model?: ModelView | null;
+  rawConfidence?: number;
 }
 
 interface Plan {
@@ -63,6 +67,7 @@ interface Plan {
     warnings: string[];
   };
   signalLabAvailable: boolean;
+  learning: { trainedAt: string; testAuc: number; trust: number; baseRate: number } | null;
   recommendations: Rec[];
   tradeContexts: Record<string, TradeContext>;
   trackRecord: { summary: { total: number; pending: number; correct: number; incorrect: number; inconclusive: number; hitRatePercent: number | null; avgConfidence: number | null }; recent: Prediction[] } | null;
@@ -142,8 +147,20 @@ function RecCard({ r, ctx }: { r: Rec; ctx: TradeContext | undefined }) {
         </div>
         <div className="flex items-center gap-3">
           <ScoreBar score={r.score} />
-          <Tooltip content={<span>Probability-style confidence that the direction is right over ~7 days. Calls are scored automatically.</span>}>
-            <span className="num cursor-help text-xs text-muted">{r.confidence}%</span>
+          {r.model ? <ModelProbability view={r.model} compact /> : null}
+          <Tooltip
+            content={
+              <span>
+                Probability-style confidence that the direction is right over ~7 days. Calls are scored automatically.
+                {r.rawConfidence !== undefined && r.rawConfidence !== r.confidence
+                  ? ` Calibrated from ${r.rawConfidence}% using how similar past Autopilot calls actually did.`
+                  : ""}
+              </span>
+            }
+          >
+            <span className="num cursor-help text-xs text-muted">
+              {r.confidence}%{r.rawConfidence !== undefined && r.rawConfidence !== r.confidence ? "*" : ""}
+            </span>
           </Tooltip>
         </div>
       </div>
@@ -353,6 +370,8 @@ export function AutopilotWorkspace() {
             </Panel>
           </div>
 
+          <AccuracyGauge sources={["autopilot"]} title="How often is Autopilot right?" />
+
           {positions.length ? (
             <Panel>
               <PanelHeader
@@ -383,6 +402,22 @@ export function AutopilotWorkspace() {
               </PanelBody>
             </Panel>
           ) : null}
+
+          {data.learning ? (
+            <p className="flex flex-wrap items-center gap-1.5 text-[0.6875rem] text-muted">
+              <GraduationCap className="size-3.5" />
+              Learned model trained {formatRelative(data.learning.trainedAt)} · out-of-sample AUC {data.learning.testAuc.toFixed(3)} · weight in scores{" "}
+              {(data.learning.trust * 100).toFixed(0)}% of maximum.{" "}
+              <Link href="/learning" className="underline">See what it learned</Link>
+            </p>
+          ) : (
+            <Notice tone="info">
+              <span className="flex items-center gap-1.5">
+                <GraduationCap className="size-3.5" /> The learning model is training for the first time; the next plan will include its view.{" "}
+                <Link href="/learning" className="underline">Learning</Link>
+              </span>
+            </Notice>
+          )}
 
           {!data.signalLabAvailable ? (
             <Notice tone="info">

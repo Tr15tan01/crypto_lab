@@ -5,7 +5,7 @@ import { logger } from "@/lib/logger";
 import { marketData } from "@/services/binance";
 import { HORIZONS, evaluateOutcome } from "@/services/research/evaluation";
 import type { ChatOutlook } from "@/services/ai/orchestration/follow-ups";
-import type { PredictionDoc } from "@/models";
+import type { PredictionDoc, ResearchEvaluation } from "@/models";
 import { levelOutcome, sanitizeLevels, summarizeTrackRecord } from "./scoring";
 
 export interface PricedSymbol {
@@ -91,6 +91,58 @@ export async function evaluateDuePredictions(userId: string, max = 10): Promise<
     }
   }
   return scored;
+}
+
+export const CHECKPOINT_HORIZONS = ["24h", "7d", "30d"] as const;
+export type CheckpointHorizon = (typeof CHECKPOINT_HORIZONS)[number];
+
+/**
+ * Checks calls at every standard horizon (24h / 7d / 30d) as each one comes due, so accuracy
+ * can be shown per time frame. Idempotent and bounded (at most `max` Binance requests).
+ */
+export async function evaluateCheckpoints(userId: string, max = 12): Promise<number> {
+  const { predictions } = await getCollections();
+  const now = Date.now();
+  const candidates = await predictions
+    .find(
+      { userId, timestamp: { $lte: new Date(now - HORIZONS["24h"].ms) }, "checkpoints.2": { $exists: false } },
+      { projection: { symbol: 1, bias: 1, priceAtPrediction: 1, timestamp: 1, horizon: 1, evaluation: 1, checkpoints: 1 } },
+    )
+    .sort({ timestamp: 1 })
+    .limit(300)
+    .toArray();
+
+  let requests = 0;
+  let added = 0;
+  for (const p of candidates) {
+    if (requests >= max) break;
+    const have = new Set((p.checkpoints ?? []).map((c) => c.horizon));
+    const start = p.timestamp.getTime();
+    for (const h of CHECKPOINT_HORIZONS) {
+      if (have.has(h) || start + HORIZONS[h].ms > now) continue;
+      try {
+        let ev: ResearchEvaluation | null = null;
+        if (h === p.horizon && p.evaluation) {
+          const { levelHit, ...rest } = p.evaluation;
+          void levelHit; // checkpoints record the directional outcome only
+          ev = rest;
+        }
+        if (!ev) {
+          if (requests >= max) break;
+          requests++;
+          const kl = await marketData().klinesBetween(p.symbol, HORIZONS[h].interval, start, start + HORIZONS[h].ms);
+          if (kl.stale) continue;
+          ev = evaluateOutcome(p.bias, p.priceAtPrediction, start, h, kl.data);
+        }
+        if (!ev) continue;
+        const res = await predictions.updateOne({ _id: p._id, "checkpoints.horizon": { $ne: h } }, { $push: { checkpoints: ev } });
+        added += res.modifiedCount;
+      } catch (err) {
+        logger.warn("predictions.checkpoint_failed", { symbol: p.symbol, horizon: h, error: err });
+      }
+    }
+  }
+  return added;
 }
 
 export interface AutopilotCall {

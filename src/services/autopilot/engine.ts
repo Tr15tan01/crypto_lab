@@ -60,6 +60,11 @@ export interface EngineInput {
    * weighted by what they actually did historically instead of all counting as bullish.
    */
   signalEdges?: Partial<Record<DiscoverySignal, { edge: number; tStat: number; events: number }>> | null;
+  /**
+   * The learning model's probability that the pair beats BTC over 7 days, its base rate, and
+   * how much it is trusted (0 … 1, from its out-of-sample AUC). Weight scales with trust.
+   */
+  model?: { probability: number; baseRate: number; trust: number } | null;
 }
 
 export interface SizingInput {
@@ -100,6 +105,10 @@ export interface Recommendation {
   holding: { quantity: number; averageCost: number; marketValue: number; pnlPercent: number } | null;
   /** 90-day daily-return correlation with BTC (set by the service). */
   btcCorrelation?: number | null;
+  /** The learning model's view, when a trained model exists (set by the service). */
+  model?: import("@/services/learning/learning-service").ModelView | null;
+  /** Confidence before calibration against Autopilot's own scored calls (set by the service). */
+  rawConfidence?: number;
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -254,6 +263,16 @@ export function buildFactors(input: EngineInput): Factor[] {
       score: s,
       weight: 0.05,
       note: `${orderBookImbalance >= 0 ? "bids" : "asks"} ${Math.abs(orderBookImbalance * 100).toFixed(0)}% heavier within ±2%`,
+    });
+  }
+
+  if (input.model && input.model.trust > 0) {
+    const edgePts = (input.model.probability - input.model.baseRate) * 100;
+    f.push({
+      name: "Learned model",
+      score: clamp(edgePts / 5, -2, 2),
+      weight: Math.round(0.18 * input.model.trust * 100) / 100,
+      note: `${(input.model.probability * 100).toFixed(0)}% chance to beat BTC in 7d (typical ${(input.model.baseRate * 100).toFixed(0)}%), model trust ${(input.model.trust * 100).toFixed(0)}%`,
     });
   }
 

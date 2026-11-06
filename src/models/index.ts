@@ -271,6 +271,11 @@ export interface PredictionDoc {
   /** When the horizon ends and the call can be scored. */
   dueAt: Date;
   evaluation: (ResearchEvaluation & { levelHit: "target" | "stop" | "none" | null }) | null;
+  /**
+   * The same call checked at every standard horizon (24h, 7d, 30d), whatever its own horizon,
+   * so accuracy can be compared across time frames. Filled in as each horizon comes due.
+   */
+  checkpoints?: ResearchEvaluation[];
 }
 
 /** A trader the user follows: imported from Binance copy trading or tracked by hand. */
@@ -331,6 +336,45 @@ export interface TraderTradeDoc {
   status: "open" | "partial" | "closed";
   source: "binance_copy" | "manual" | "csv";
   createdAt: Date;
+}
+
+/**
+ * One training run of the learning model. Runs are kept forever, so the history of what the
+ * model learned, how well it validated, and how its views changed is always visible.
+ */
+export interface LearningRunDoc {
+  _id: ObjectId;
+  createdAt: Date;
+  trigger: "scheduled" | "manual" | "auto";
+  durationMs: number;
+  data: { pairs: number; samples: number; from: Date | null; to: Date | null; horizonDays: number; strideDays: number };
+  split: { cutoff: Date; trainSamples: number; testSamples: number };
+  /** Out-of-sample results: the honest measure of skill. */
+  test: {
+    metrics: import("@/services/learning/model").Metrics;
+    calibration: import("@/services/learning/model").CalibrationBucket[];
+    deciles: import("@/services/learning/model").Decile[];
+    spreadPercent: number;
+  };
+  train: { metrics: import("@/services/learning/model").Metrics };
+  /** 0 … 1: how much Autopilot relies on the model, derived from the out-of-sample AUC. */
+  trust: number;
+  model: import("@/services/learning/model").TrainedModel;
+  lessons: import("@/services/learning/model").Lesson[];
+  changes: import("@/services/learning/model").Change[];
+  picks: {
+    top: Array<{ symbol: string; probability: number; drivers: Array<{ label: string; contribution: number }> }>;
+    bottom: Array<{ symbol: string; probability: number; drivers: Array<{ label: string; contribution: number }> }>;
+  };
+  /**
+   * How the run's live picks actually did, per horizon: top picks are right when they beat
+   * BTC, bottom picks when they lag it. Added as each horizon comes due; never rewritten.
+   */
+  pickEvaluations?: Array<{
+    horizon: "24h" | "7d" | "30d";
+    evaluatedAt: Date;
+    results: Array<{ symbol: string; side: "top" | "bottom"; excessPercent: number; correct: boolean }>;
+  }>;
 }
 
 /** An AI review of discovery-screen candidates. Stores the exact data the AI was given. */

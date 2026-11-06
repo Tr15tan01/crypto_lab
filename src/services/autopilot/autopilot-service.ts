@@ -15,6 +15,7 @@ import { derivatives, fearGreed, orderBook, smartMoney, type SmartMoney } from "
 import type { TradeContext } from "@/components/portfolio/trade-dialog";
 import { assessRegime, decide, portfolioRisk, preScore, returnCorrelation, type EngineInput, type Recommendation } from "./engine";
 import { cachedSignalBacktest } from "@/services/backtest/backtest-service";
+import { calibrateConfidence, latestRun, scoreCandles, selfCalibration } from "@/services/learning/learning-service";
 import { BACKTEST_SIGNALS, signalEdge } from "@/services/backtest/signal-backtest";
 
 /**
@@ -89,6 +90,7 @@ async function buildPlan(userId: string, opts: AutopilotOptions) {
     md.symbolMap().then((r) => r.data).catch(() => null),
     cachedSignalBacktest().catch(() => null),
   ]);
+  const [learned, calibration] = await Promise.all([latestRun().catch(() => null), selfCalibration(userId).catch(() => [])]);
   const signalEdges: NonNullable<EngineInput["signalEdges"]> = {};
   for (const s of BACKTEST_SIGNALS) {
     const e = signalEdge(backtest, s);
@@ -145,6 +147,7 @@ async function buildPlan(userId: string, opts: AutopilotOptions) {
       if (daily.length < 30) return null;
       const summary = summarizeIndicators(daily, "1d", row.price);
       const h = held.get(row.symbol);
+      const modelView = learned && row.baseAsset !== "BTC" ? scoreCandles(learned, daily, btcDaily) : null;
       const rec = decide(
         {
           row,
@@ -156,10 +159,15 @@ async function buildPlan(userId: string, opts: AutopilotOptions) {
           smartMoney: smartBySymbol.get(row.symbol) ?? null,
           holding: h ? { quantity: h.quantity, averageCost: h.averageCost } : null,
           signalEdges: Object.keys(signalEdges).length ? signalEdges : null,
+          model: modelView && learned ? { probability: modelView.probability, baseRate: learned.test.metrics.baseRate, trust: learned.trust } : null,
         },
         regime,
         sizing,
       );
+      rec.model = modelView;
+      // Learn from Autopilot's own record: pull confidence toward what similar calls achieved.
+      rec.rawConfidence = rec.confidence;
+      rec.confidence = calibrateConfidence(rec.confidence, calibration, "autopilot");
       rec.btcCorrelation = btcDaily && row.baseAsset !== "BTC" ? returnCorrelation(daily, btcDaily) : row.baseAsset === "BTC" ? 1 : null;
       return rec;
     } catch (err) {
@@ -230,6 +238,9 @@ async function buildPlan(userId: string, opts: AutopilotOptions) {
     sizing: { ...sizing, cashAfterBuys: cashLeft },
     risk: portfolioRisk(recs, sizing.portfolioValue, sizing.cash),
     signalLabAvailable: backtest !== null,
+    learning: learned
+      ? { trainedAt: learned.createdAt.toISOString(), testAuc: learned.test.metrics.auc, trust: learned.trust, baseRate: learned.test.metrics.baseRate }
+      : null,
     universe: { scanned: rows.length, analysed: recs.length },
     recommendations: recs,
     tradeContexts,

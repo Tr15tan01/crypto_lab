@@ -6,8 +6,9 @@ import { logger } from "@/lib/logger";
 import { evaluateAlerts } from "@/services/alerts/alerts-service";
 import { maybeCreateScheduledSnapshot } from "@/services/portfolio/snapshots";
 import { evaluateDueResearch } from "@/services/research/research-service";
-import { evaluateDuePredictions } from "@/services/predictions/prediction-service";
+import { evaluateCheckpoints, evaluateDuePredictions } from "@/services/predictions/prediction-service";
 import { syncDueTraders } from "@/services/traders/trader-service";
+import { evaluateRunPicks, trainIfDue } from "@/services/learning/learning-service";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -23,7 +24,8 @@ function authorized(req: NextRequest): boolean {
 
 /**
  * Scheduled maintenance (Vercel Cron or any external scheduler):
- * portfolio snapshot (if due), alert evaluation, AI prediction evaluation, tracked-trader sync.
+ * portfolio snapshot (if due), alert evaluation, AI prediction evaluation, tracked-trader sync,
+ * and the daily retrain of the learning model.
  * Protected by CRON_SECRET; disabled when the secret is not set.
  */
 export async function GET(req: NextRequest) {
@@ -55,6 +57,10 @@ export async function GET(req: NextRequest) {
   await run("alerts", () => evaluateAlerts(userId, { force: true }));
   await run("research_evaluation", () => evaluateDueResearch(userId, 20));
   await run("prediction_evaluation", () => evaluateDuePredictions(userId, 20));
+  await run("prediction_checkpoints", () => evaluateCheckpoints(userId, 30));
+  await run("model_pick_evaluation", () => evaluateRunPicks(3));
   await run("trader_sync", () => syncDueTraders(userId, 5));
+  // Last: the daily model retrain loads ~100 histories, so it runs after the quick jobs.
+  await run("learning", () => trainIfDue(userId));
   return NextResponse.json({ data: result });
 }

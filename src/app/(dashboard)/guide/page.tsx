@@ -290,6 +290,11 @@ export default async function GuidePage() {
                   "A backtest of every discovery signal over ~2.5 years: win rate, median return and result vs BTC 7 and 30 days after it fired, compared with a random-coin baseline. Tells you which signals have actually worked; Autopilot uses it to weight them.",
                 ],
                 [
+                  "Learning",
+                  "/learning",
+                  "The app's self-learning model. Every day it replays ~2.5 years of daily data for the 100 most liquid pairs, learns which factors predicted a coin beating BTC over the next week, and tests that on a later period it never saw. Shows what it learned in plain words, how reliable it proved (AUC, top-vs-bottom spread, calibration), how its views changed between runs, its current picks, and how well its own past calls were calibrated. Its view appears on coin pages, in Autopilot (weighted by its proven skill) and in the AI chat.",
+                ],
+                [
                   "Top Traders",
                   "/traders",
                   "Discover Binance copy-trading leaders or track anyone manually: returns, drawdown, coins bought and sold, entries, exits, holding times and whether their strategy is changing.",

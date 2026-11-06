@@ -5,6 +5,7 @@ import type { Kline } from "@/services/binance/schemas";
 import { getDiscoveryScan } from "@/services/discovery/discovery-service";
 import { isLikelyTokenizedStock } from "@/services/market/asset-names";
 import { externalCache } from "@/services/external/http";
+import { MarketCache } from "@/services/binance/cache";
 import { runBacktest, type BacktestResult } from "./signal-backtest";
 
 /**
@@ -33,8 +34,25 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
 
 export type SignalBacktest = BacktestResult & { universe: string[] };
 
-async function compute(): Promise<SignalBacktest> {
-  const started = Date.now();
+export interface UniverseHistories {
+  /** Closed daily candles per pair (BTCUSDT included), oldest first. */
+  pairs: Array<{ symbol: string; candles: Kline[] }>;
+  btc: Kline[] | null;
+}
+
+const globalForHistories = globalThis as unknown as { __cryptoLabHistories?: MarketCache };
+
+/**
+ * Up to 1000 closed daily candles for the most liquid pairs. Shared by Signal Lab and the
+ * learning model; kept in memory only (too large to persist) for 6 hours.
+ */
+export async function loadUniverseHistories(): Promise<UniverseHistories> {
+  globalForHistories.__cryptoLabHistories ??= new MarketCache(null, Date.now, 2);
+  const res = await globalForHistories.__cryptoLabHistories.get("universe:histories", 6 * 60 * 60, loadHistories);
+  return res.data;
+}
+
+async function loadHistories(): Promise<UniverseHistories> {
   const scan = await getDiscoveryScan();
   const universe = scan.data.rows
     .filter((r) => r.quoteAsset === "USDT" && !isLikelyTokenizedStock(r.baseAsset))
@@ -48,7 +66,12 @@ async function compute(): Promise<SignalBacktest> {
   const pairs = universe
     .map((symbol, i) => ({ symbol, candles: (histories[i] ?? []).filter((k) => k.closeTime < now) }))
     .filter((p) => p.candles.length > 0);
-  const btc = pairs.find((p) => p.symbol === "BTCUSDT")?.candles ?? null;
+  return { pairs, btc: pairs.find((p) => p.symbol === "BTCUSDT")?.candles ?? null };
+}
+
+async function compute(): Promise<SignalBacktest> {
+  const started = Date.now();
+  const { pairs, btc } = await loadUniverseHistories();
   const result = runBacktest(pairs.filter((p) => p.symbol !== "BTCUSDT"), btc);
   logger.info("backtest.computed", { pairs: result.pairs, ms: Date.now() - started });
   return { ...result, universe: pairs.map((p) => p.symbol) };

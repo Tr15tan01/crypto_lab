@@ -10,6 +10,7 @@ import type {
   DiscoveryShortlistDoc,
   HoldingDoc,
   JobStateDoc,
+  LearningRunDoc,
   MarketCacheDoc,
   MarketSnapshotDoc,
   MessageDoc,
@@ -42,6 +43,7 @@ export const COLLECTIONS = {
   predictions: "ai_predictions",
   traders: "traders",
   traderTrades: "trader_trades",
+  learningRuns: "learning_runs",
   decisionJournal: "decision_journal",
   alerts: "alerts",
   notifications: "notifications",
@@ -66,6 +68,7 @@ export interface Collections {
   predictions: Collection<PredictionDoc>;
   traders: Collection<TraderDoc>;
   traderTrades: Collection<TraderTradeDoc>;
+  learningRuns: Collection<LearningRunDoc>;
   decisionJournal: Collection<DecisionJournalDoc>;
   alerts: Collection<AlertDoc>;
   notifications: Collection<NotificationDoc>;
@@ -121,6 +124,7 @@ export async function ensureIndexes(db: Db): Promise<void> {
       { unique: true, partialFilterExpression: { externalId: { $type: "string" } }, name: "uniq_external_trader" },
     ),
     c(COLLECTIONS.traderTrades).createIndex({ traderId: 1, openedAt: -1 }),
+    c(COLLECTIONS.learningRuns).createIndex({ createdAt: -1 }),
     c(COLLECTIONS.traderTrades).createIndex(
       { traderId: 1, externalId: 1 },
       { unique: true, partialFilterExpression: { externalId: { $type: "string" } }, name: "uniq_external_trade" },
@@ -162,6 +166,7 @@ export async function getCollections(): Promise<Collections> {
     predictions: db.collection<PredictionDoc>(COLLECTIONS.predictions),
     traders: db.collection<TraderDoc>(COLLECTIONS.traders),
     traderTrades: db.collection<TraderTradeDoc>(COLLECTIONS.traderTrades),
+    learningRuns: db.collection<LearningRunDoc>(COLLECTIONS.learningRuns),
     decisionJournal: db.collection<DecisionJournalDoc>(COLLECTIONS.decisionJournal),
     alerts: db.collection<AlertDoc>(COLLECTIONS.alerts),
     notifications: db.collection<NotificationDoc>(COLLECTIONS.notifications),

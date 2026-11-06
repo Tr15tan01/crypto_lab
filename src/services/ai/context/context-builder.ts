@@ -7,6 +7,8 @@ import { buildScorecard } from "@/services/indicators/scorecard";
 import { summarizeTrackRecord } from "@/services/predictions/scoring";
 import type { PricedSymbol } from "@/services/predictions/prediction-service";
 import { derivatives, fearGreed, orderBook, smartMoney, type SmartMoney } from "@/services/signals/market-intel";
+import { latestRun, scoreCandles } from "@/services/learning/learning-service";
+import type { LearningRunDoc } from "@/models";
 import { getPortfolioState } from "@/services/portfolio/portfolio-service";
 import { scenarioImpact } from "@/services/portfolio/valuation";
 import type { Kline } from "@/services/binance/schemas";
@@ -126,11 +128,13 @@ export async function buildChatContext(
   let btcDaily: Kline[] | null = null;
   let pastCalls: PredictionDoc[] = [];
   let smart: SmartMoney | null = null;
+  let learned: LearningRunDoc | null = null;
   if (symbols.length) {
-    [btcDaily, pastCalls, smart] = await Promise.all([
+    [btcDaily, pastCalls, smart, learned] = await Promise.all([
       md.klines("BTCUSDT", "1d", "1y").then((r) => r.data).catch(() => null),
       predictions.find({ userId, source: { $ne: "autopilot" } }).sort({ timestamp: -1 }).limit(200).toArray(),
       smartMoney(),
+      latestRun().catch(() => null),
     ]);
   }
   if (pastCalls.length) {
@@ -233,6 +237,20 @@ export async function buildChatContext(
         sameRegime: card.baseRates.sameRegime,
       };
       included.push(`${t.baseAsset} scorecard`);
+      const view = learned && t.baseAsset !== "BTC" ? scoreCandles(learned, k, btcDaily) : null;
+      if (view && learned) {
+        entry.learnedModel = {
+          note:
+            "The app's own model, trained daily on ~2.5 years of daily data for the 100 most liquid pairs. probability = chance this pair beats BTC over the next 7 days. " +
+            `Out-of-sample AUC ${learned.test.metrics.auc} (0.5 = no skill); typical probability ${learned.test.metrics.baseRate}. Treat as one input, weighted by its trust.`,
+          probability: view.probability,
+          edgeVsTypicalPoints: view.edgePoints,
+          trust: view.trust,
+          trainedAt: view.trainedAt,
+          topDrivers: view.drivers.map((d) => `${d.label} (${d.value}): ${d.contribution > 0 ? "+" : ""}${d.contribution} log-odds`),
+        };
+        included.push(`${t.baseAsset} learned model`);
+      }
       entry.historicalCloses = {
         "1dAgo": priceAgo(k, 1),
         "7dAgo": priceAgo(k, 7),

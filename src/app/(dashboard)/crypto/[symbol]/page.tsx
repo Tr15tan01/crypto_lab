@@ -15,6 +15,7 @@ import { Badge, Button, EmptyState, Panel, PanelBody, PanelHeader } from "@/comp
 import { ChangeText } from "@/components/market/indicators";
 import { SymbolLiveHeader } from "@/components/market/symbol-live";
 import { IndicatorPanel } from "@/components/market/indicator-panel";
+import { ModelViewCard } from "@/components/learning/model-view-card";
 import { PriceChart } from "@/components/charts/price-chart";
 import { TradeDialog, type TradeContext } from "@/components/portfolio/trade-dialog";
 import { TransactionsTable, type TxRow } from "@/components/portfolio/transactions-table";
@@ -263,6 +264,8 @@ export default async function CryptoPage({ params }: PageProps<"/crypto/[symbol]
             <PanelHeader title="Price alerts" />
             <AlertsPanel symbol={symbol} alerts={serialize(u?.alerts ?? []) as AlertItem[]} hasPosition={Boolean(holding)} />
           </Panel>
+
+          <ModelViewCard symbol={symbol} />
         </div>
       </div>
 
