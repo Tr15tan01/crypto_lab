@@ -15,7 +15,13 @@ import {
   type CopySort,
   type CopyTimeRange,
 } from "./binance-copy";
+import { marketData } from "@/services/binance";
+import { futuresMarkPrices, futuresToSpot } from "@/services/signals/market-intel";
 import {
+  activityTimeline,
+  capitalByCoin,
+  exposure,
+  holdingsView,
   detectStrategyChange,
   equityFromRoi,
   equityFromTrades,
@@ -144,7 +150,30 @@ export async function getTrader(userId: string, id: string) {
   const { traderTrades } = await getCollections();
   const trades = await traderTrades.find({ traderId: current._id }).sort({ openedAt: -1 }).limit(MAX_TRADES_PER_TRADER).toArray();
   const asOf = Date.now();
-  return { trader: current, trades, metrics: traderMetrics(current, trades, asOf), syncError, asOf };
+  const like = trades.map((t) => ({ ...toTradeLike(t), status: t.status }));
+  const openSymbols = [...new Set(like.filter((t) => t.status !== "closed").map((t) => t.symbol))];
+  // Futures traders are priced with futures mark prices; manual (spot) traders with spot prices.
+  const [marks, spot] = await Promise.all([
+    current.source === "binance_copy" ? futuresMarkPrices() : Promise.resolve(new Map<string, number>()),
+    openSymbols.length
+      ? marketData()
+          .prices(openSymbols.map(futuresToSpot))
+          .then((r) => r.data)
+          .catch(() => new Map<string, number>())
+      : Promise.resolve(new Map<string, number>()),
+  ]);
+  const holdings = holdingsView(like, (s) => marks.get(s) ?? spot.get(futuresToSpot(s)) ?? null);
+  return {
+    trader: current,
+    trades,
+    metrics: traderMetrics(current, trades, asOf),
+    holdings,
+    exposure: exposure(holdings, like, asOf),
+    activity: activityTimeline(like),
+    capital: capitalByCoin(like).slice(0, 20),
+    syncError,
+    asOf,
+  };
 }
 
 export async function trackBinanceTrader(userId: string, portfolioId: string) {

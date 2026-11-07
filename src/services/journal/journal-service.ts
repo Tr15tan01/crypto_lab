@@ -6,6 +6,24 @@ import { marketData, type MarketTicker } from "@/services/binance";
 import { recordMarketSnapshot } from "@/services/market/snapshots";
 import type { DecisionJournalDoc, DecisionType, JournalReview, JournalRevision } from "@/models";
 import type { JournalFields } from "@/lib/validation/schemas";
+import { captureMarketContext } from "@/services/market/context-snapshot";
+import { logger } from "@/lib/logger";
+
+/**
+ * Stores the market conditions on a journal entry created inside a trade transaction.
+ * Called after the trade commits; never throws (a missing snapshot must not fail a trade).
+ */
+export async function attachMarketContext(journalId: ObjectId | null | undefined, symbol: string) {
+  if (!journalId) return;
+  try {
+    const ctx = await captureMarketContext(symbol);
+    if (!ctx) return;
+    const { decisionJournal } = await getCollections();
+    await decisionJournal.updateOne({ _id: journalId, marketContext: { $exists: false } }, { $set: { marketContext: ctx } });
+  } catch (err) {
+    logger.warn("journal.context_failed", { symbol, error: err });
+  }
+}
 
 async function currentPrice(
   symbol: string,
@@ -25,7 +43,7 @@ export async function createJournalEntry(
 ) {
   const info = (await marketData().symbolInfo(input.symbol).catch(() => null))?.data;
   if (info === null) throw new ValidationError(`${input.symbol} is not listed on Binance Spot.`);
-  const p = await currentPrice(input.symbol);
+  const [p, marketContext] = await Promise.all([currentPrice(input.symbol), captureMarketContext(input.symbol).catch(() => null)]);
   const { decisionJournal } = await getCollections();
   const doc: DecisionJournalDoc = {
     _id: new ObjectId(),
@@ -46,6 +64,7 @@ export async function createJournalEntry(
     outcome: null,
     reviews: [],
     revisions: [],
+    marketContext,
     timestamp: new Date(),
   };
   await decisionJournal.insertOne(doc);

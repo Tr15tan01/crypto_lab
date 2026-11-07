@@ -11,8 +11,9 @@ const variantClass: Record<ButtonVariant, string> = {
   secondary: "bg-surface-3 text-fg border border-border-strong hover:bg-border-strong",
   ghost: "text-muted hover:text-fg hover:bg-surface-3",
   danger: "bg-down/15 text-down border border-down/30 hover:bg-down/25",
-  up: "bg-up text-[#04140d] hover:bg-[#3fd29b] font-medium",
-  down: "bg-down text-[#1a0505] hover:bg-[#f47070] font-medium",
+  // Dark text on the bright dark-theme colors; white on the deeper light-theme colors (≥ 4.5:1 both ways).
+  up: "bg-up text-[#04140d] light:text-white hover:bg-up/85 font-medium",
+  down: "bg-down text-[#1a0505] light:text-white hover:bg-down/85 font-medium",
 };
 
 const sizeClass: Record<ButtonSize, string> = {

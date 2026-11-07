@@ -3,9 +3,10 @@ import { MongoServerError, ObjectId } from "mongodb";
 import { getCollections } from "@/lib/mongodb/collections";
 import { AppError, NotFoundError, ValidationError } from "@/lib/errors";
 import { marketData, type MarketTicker } from "@/services/binance";
-import { assetName } from "@/services/market/asset-names";
 import { recordMarketSnapshot } from "@/services/market/snapshots";
 import type { WatchlistDoc } from "@/models";
+import { captureMarketContext } from "@/services/market/context-snapshot";
+import { fullAssetNames, nameFrom } from "@/services/market/full-names";
 
 export async function addToWatchlist(
   userId: string,
@@ -19,6 +20,7 @@ export async function addToWatchlist(
   let ticker: MarketTicker | null = null;
   let fetchedAt = Date.now();
   let stale = false;
+  const contextPromise = captureMarketContext(info.symbol).catch(() => null);
   try {
     const res = await md.ticker(input.symbol);
     ticker = res.data;
@@ -42,6 +44,7 @@ export async function addToWatchlist(
     notes: input.notes,
     targetPrice: input.targetPrice ?? null,
     personalRanking: null,
+    contextAtAdd: await contextPromise,
     active: true,
     removedAt: null,
     updatedAt: now,
@@ -108,6 +111,7 @@ export interface WatchlistRow {
   changeSinceAdded: number | null;
   distanceToTarget: number | null;
   tradable: boolean | null;
+  contextAtAdd: WatchlistDoc["contextAtAdd"] | null;
 }
 
 export async function listWatchlist(userId: string, opts: { includeRemoved?: boolean } = {}) {
@@ -123,6 +127,7 @@ export async function listWatchlist(userId: string, opts: { includeRemoved?: boo
   let symbols = new Map<string, { tradable: boolean }>();
   let fetchedAt: number | null = null;
   let stale = false;
+  const names = await fullAssetNames();
   try {
     const [all, sym] = await Promise.all([md.allTickers(), md.symbolMap()]);
     tickers = new Map(all.data.map((t) => [t.symbol, t]));
@@ -141,7 +146,7 @@ export async function listWatchlist(userId: string, opts: { includeRemoved?: boo
       symbol: d.symbol,
       baseAsset: d.baseAsset,
       quoteAsset: d.quoteAsset,
-      name: assetName(d.baseAsset),
+      name: nameFrom(names, d.baseAsset),
       addedAt: d.addedAt.toISOString(),
       removedAt: d.removedAt ? d.removedAt.toISOString() : null,
       active: d.active,
@@ -156,6 +161,7 @@ export async function listWatchlist(userId: string, opts: { includeRemoved?: boo
       distanceToTarget: price !== null && d.targetPrice ? ((d.targetPrice - price) / price) * 100 : null,
       // Unknown (null) when exchange info is unavailable — never guessed.
       tradable: symbols.size ? (symbols.get(d.symbol)?.tradable ?? false) : null,
+      contextAtAdd: d.contextAtAdd ?? null,
     };
   });
 

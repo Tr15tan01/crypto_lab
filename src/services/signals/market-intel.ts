@@ -228,3 +228,41 @@ export async function smartMoney(): Promise<SmartMoney | null> {
     return null;
   }
 }
+
+/* ───────────── Futures mark prices ───────────── */
+
+/** Mark price of every USD-M perpetual in one request (cached 60 s); empty when unreachable. */
+export async function futuresMarkPrices(): Promise<Map<string, number>> {
+  const base = appEnv().BINANCE_FUTURES_API_BASE.replace(/\/$/, "");
+  try {
+    const res = await externalCache().get("intel:marks", 60, async () => {
+      const rows = z.array(z.object({ symbol: z.string(), markPrice: num })).parse(await fetchJson(`${base}/fapi/v1/premiumIndex`, { retries: 0 }));
+      return rows.filter((r) => r.markPrice > 0).map((r) => [r.symbol, r.markPrice] as [string, number]);
+    });
+    return new Map(res.data);
+  } catch {
+    return new Map();
+  }
+}
+
+/** Daily Fear & Greed history (since 2018) as day-index → value; cached 12 h. Empty when unavailable. */
+export async function fearGreedHistory(): Promise<Map<number, number>> {
+  const configured = appEnv().FEAR_GREED_URL;
+  if (!configured || configured === "off") return new Map();
+  const url = new URL(configured);
+  url.searchParams.set("limit", "0");
+  try {
+    const res = await externalCache().get(
+      "intel:fng:history",
+      12 * 60 * 60,
+      async () => {
+        const raw = z.object({ data: z.array(z.object({ value: num, timestamp: num })) }).parse(await fetchJson(url.toString()));
+        return raw.data.map((d) => [Math.floor((d.timestamp * 1000) / 86_400_000), d.value] as [number, number]);
+      },
+      { persist: true, persistEverySeconds: 12 * 60 * 60 },
+    );
+    return new Map(res.data);
+  } catch {
+    return new Map();
+  }
+}

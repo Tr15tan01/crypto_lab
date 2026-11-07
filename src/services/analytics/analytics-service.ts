@@ -6,7 +6,13 @@ import type { Kline } from "@/services/binance/schemas";
 import { getPortfolioState } from "@/services/portfolio/portfolio-service";
 import { listSnapshots } from "@/services/portfolio/snapshots";
 import { HORIZON_ORDER, HORIZONS } from "@/services/research/evaluation";
+import { rsi, sma } from "@/services/indicators/core";
+import { fearGreedHistory } from "@/services/signals/market-intel";
 import {
+  bucketRounds,
+  insightsFrom,
+  tradeQuality,
+  type ScoredRound,
   buyAndHoldSeries,
   maxDrawdown,
   monthlyReturns,
@@ -153,8 +159,140 @@ export async function getAnalytics(userId: string) {
     };
   });
 
+  // ── What works for you: every round scored, then grouped by the conditions at entry ──
+  const scored: ScoredRound[] = rounds.map((r) => {
+    const now = priceNow.get(r.symbol) ?? null;
+    const unrealized = !r.closedAt && now !== null && r.averageEntry > 0 ? (now / r.averageEntry - 1) * 100 : null;
+    const openQty = r.averageEntry > 0 ? (r.invested - r.proceeds) / r.averageEntry : 0;
+    return {
+      symbol: r.symbol,
+      openedAt: r.openedAt,
+      closedAt: r.closedAt,
+      holdMs: r.holdMs,
+      pnl: r.closedAt ? r.realizedPnL : r.realizedPnL + (unrealized !== null ? (unrealized / 100) * r.averageEntry * Math.max(0, openQty) : 0),
+      returnPercent: r.closedAt ? r.realizedReturnPercent : unrealized,
+    };
+  });
+  const quality = tradeQuality(scored);
+
+  const [fng, btcDaily] = await Promise.all([fearGreedHistory(), dailyCloses("BTCUSDT")]);
+  const dayOf = (t: number) => Math.floor(t / DAY);
+  const moodAt = (t: number) => fng.get(dayOf(t)) ?? fng.get(dayOf(t) - 1) ?? null;
+  const btcCloses = btcDaily?.map((k) => k.close) ?? [];
+  const btcSma50 = sma(btcCloses, 50);
+  const lastClosedBefore = (k: Kline[], t: number) => {
+    let idx = -1;
+    for (let i = 0; i < k.length; i++) {
+      if (k[i]!.closeTime < t) idx = i;
+      else break;
+    }
+    return idx;
+  };
+  const rsiBySymbol = new Map<string, Array<number | null>>();
+  for (const [sym, k] of klines) rsiBySymbol.set(sym, rsi(k.map((c) => c.close), 14));
+
+  const byMood = bucketRounds(
+    scored,
+    (r) => {
+      const v = moodAt(r.openedAt);
+      if (v === null) return null;
+      return v <= 24 ? "xfear" : v <= 44 ? "fear" : v <= 55 ? "neutral" : v <= 75 ? "greed" : "xgreed";
+    },
+    [
+      { key: "xfear", label: "Bought in extreme fear (0–24)" },
+      { key: "fear", label: "Bought in fear (25–44)" },
+      { key: "neutral", label: "Bought in neutral mood (45–55)" },
+      { key: "greed", label: "Bought in greed (56–75)" },
+      { key: "xgreed", label: "Bought in extreme greed (76–100)" },
+    ],
+  );
+  const byBtcTrend = bucketRounds(
+    scored,
+    (r) => {
+      if (!btcDaily) return null;
+      const i = lastClosedBefore(btcDaily, r.openedAt);
+      return i >= 0 && btcSma50[i] != null ? (btcCloses[i]! > btcSma50[i]! ? "up" : "down") : null;
+    },
+    [
+      { key: "up", label: "Bought while BTC was above its 50-day average" },
+      { key: "down", label: "Bought while BTC was below its 50-day average" },
+    ],
+  );
+  const byRsi = bucketRounds(
+    scored,
+    (r) => {
+      const k = klines.get(r.symbol);
+      const series = rsiBySymbol.get(r.symbol);
+      if (!k || !series) return null;
+      const v = series[lastClosedBefore(k, r.openedAt)];
+      if (v === null || v === undefined) return null;
+      return v < 30 ? "os" : v < 50 ? "weak" : v < 70 ? "strong" : "ob";
+    },
+    [
+      { key: "os", label: "Bought when RSI was oversold (<30)" },
+      { key: "weak", label: "Bought when RSI was 30–50" },
+      { key: "strong", label: "Bought when RSI was 50–70" },
+      { key: "ob", label: "Bought when RSI was overbought (>70)" },
+    ],
+  );
+  const byHold = bucketRounds(
+    scored.filter((r) => r.closedAt),
+    (r) => (r.holdMs < DAY ? "d" : r.holdMs < 7 * DAY ? "w" : r.holdMs < 30 * DAY ? "m" : "l"),
+    [
+      { key: "d", label: "Held under a day" },
+      { key: "w", label: "Held 1–7 days" },
+      { key: "m", label: "Held 1–4 weeks" },
+      { key: "l", label: "Held over a month" },
+    ],
+  );
+  const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const byWeekday = bucketRounds(
+    scored,
+    (r) => String(new Date(r.openedAt).getUTCDay()),
+    [1, 2, 3, 4, 5, 6, 0].map((d) => ({ key: String(d), label: `Bought on ${WEEKDAYS[d]}` })),
+  );
+
+  // Journal: does higher stated confidence mean better decisions? (reviewed entries only)
+  const { decisionJournal } = await getCollections();
+  const reviewed = await decisionJournal
+    .find({ userId, confidence: { $ne: null }, outcome: { $in: ["correct", "incorrect", "mixed"] } }, { projection: { confidence: 1, outcome: 1 } })
+    .toArray();
+  const confidence = [
+    { key: "low", label: "Confidence 1–3", from: 1, to: 3 },
+    { key: "mid", label: "Confidence 4–6", from: 4, to: 6 },
+    { key: "high", label: "Confidence 7–10", from: 7, to: 10 },
+  ]
+    .map((b) => {
+      const sel = reviewed.filter((e) => (e.confidence ?? 0) >= b.from && (e.confidence ?? 0) <= b.to);
+      return {
+        key: b.key,
+        label: b.label,
+        reviewed: sel.length,
+        correctPercent: sel.length ? (sel.filter((e) => e.outcome === "correct").length / sel.length) * 100 : null,
+      };
+    })
+    .filter((b) => b.reviewed > 0);
+
+  const breakdowns = [
+    { name: "Market mood", buckets: byMood },
+    { name: "BTC trend", buckets: byBtcTrend },
+    { name: "RSI at entry", buckets: byRsi },
+    { name: "Holding time", buckets: byHold },
+    { name: "Day of week", buckets: byWeekday },
+  ];
+  const insights = insightsFrom(breakdowns);
+  if (quality.closed >= 5 && quality.payoffRatio !== null && quality.breakEvenWinRate !== null && sells.winRatePercent !== null) {
+    const edge = sells.winRatePercent - quality.breakEvenWinRate;
+    insights.unshift({
+      tone: edge >= 0 ? "up" : "down",
+      text: `Your wins are ${quality.payoffRatio.toFixed(2)}× the size of your losses, so you need a ${quality.breakEvenWinRate.toFixed(0)}% win rate to break even; you are at ${sells.winRatePercent.toFixed(0)}% (${edge >= 0 ? "above" : "below"} break-even).`,
+    });
+  }
+
   const closedRounds = rounds.filter((r) => r.closedAt);
   return {
+    quality,
+    whatWorks: { breakdowns, confidence, insights, fearGreedAvailable: fng.size > 0 },
     portfolio: {
       createdAt: portfolio.createdAt,
       initialBalance: portfolio.initialBalance,
@@ -218,6 +356,10 @@ export async function getAnalytics(userId: string) {
       profitableBuy:
         "A purchase is profitable if the current price (open positions) or the average exit price (closed positions) is above its cost including fees.",
       benchmark: "Benchmarks invest the starting balance in BTC or ETH at the portfolio creation time and hold it.",
+      whatWorks:
+        "Each position round is grouped by the conditions on the day it was opened (Fear & Greed index, BTC vs its 50-day average, the coin's RSI(14) on the last closed daily candle, weekday in UTC). Results are realised for closed rounds and unrealised for open ones.",
+      quality:
+        "Payoff ratio = average winning return ÷ average losing return. Profit factor = total gains ÷ total losses (above 1 = profitable). Expectancy = average result per closed round.",
       aiEvaluation:
         "AI biases are judged on the close-to-close return at each horizon. Moves smaller than the threshold are inconclusive. Failed calls are kept.",
     },

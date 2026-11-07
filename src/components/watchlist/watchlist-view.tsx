@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { Pencil, Star } from "lucide-react";
+import { Fragment, useMemo, useState } from "react";
+import { ChevronDown, Pencil, Star } from "lucide-react";
 import { useApi } from "@/hooks/use-api";
 import { Badge, Button, EmptyState, Notice, Panel, PanelHeader, Select, Skeleton } from "@/components/ui/primitives";
 import { ChangeText, Freshness } from "@/components/market/indicators";
 import { RemoveFromWatchlistButton, WatchlistDialog } from "./watch-dialogs";
-import { formatDate, formatPrice } from "@/lib/utils/format";
+import { cn, formatDate, formatPrice } from "@/lib/utils/format";
+import { MarketContextView, type MarketContextData } from "@/components/market/market-context";
 import type { WatchlistRow } from "@/services/watchlist/watchlist-service";
 
 interface Payload {
@@ -21,6 +22,7 @@ type Sort = "ranking" | "added" | "since" | "change";
 export function WatchlistView({ initial }: { initial: Payload }) {
   const { data, error, refresh } = useApi<Payload>("/api/watchlist?history=1", { refreshInterval: 30_000, initialData: initial });
   const [sort, setSort] = useState<Sort>("ranking");
+  const [expanded, setExpanded] = useState<string | null>(null);
   const payload = data ?? initial;
 
   const active = useMemo(() => {
@@ -73,19 +75,25 @@ export function WatchlistView({ initial }: { initial: Payload }) {
                   <th className="px-3 py-2 text-right font-medium">Since added</th>
                   <th className="px-3 py-2 text-right font-medium">Target</th>
                   <th className="px-3 py-2 font-medium">Why I&apos;m watching</th>
+                  <th className="px-3 py-2 font-medium">Market when added</th>
                   <th className="px-3 py-2 font-medium">Added</th>
                   <th className="px-4 py-2" />
                 </tr>
               </thead>
               <tbody>
-                {active.map((r) => (
-                  <tr key={r.id} className="border-b border-border/70 align-top last:border-0">
+                {active.map((r) => {
+                  const ctx = r.contextAtAdd as unknown as MarketContextData | null;
+                  return (
+                  <Fragment key={r.id}>
+                  <tr className={cn("align-top", expanded === r.id ? "" : "border-b border-border/70")}>
                     <td className="num px-4 py-2.5 text-muted">{r.personalRanking ?? "—"}</td>
                     <td className="px-3 py-2.5">
                       <Link href={`/crypto/${r.symbol}`} className="font-medium hover:text-accent">
-                        {r.baseAsset}<span className="text-faint">/{r.quoteAsset}</span>
+                        {r.name ?? r.baseAsset}
                       </Link>
-                      {r.name ? <span className="block text-[0.6875rem] text-muted">{r.name}</span> : null}
+                      <span className="block text-[0.6875rem] text-muted">
+                        {r.baseAsset}<span className="text-faint">/{r.quoteAsset}</span>
+                      </span>
                       {r.tradable === false ? <Badge tone="down" className="mt-1">No longer tradable on Binance</Badge> : null}
                     </td>
                     <td className="num px-3 py-2.5 text-right">{formatPrice(r.price)}</td>
@@ -104,6 +112,31 @@ export function WatchlistView({ initial }: { initial: Payload }) {
                       <p className="line-clamp-2">{r.reason ?? "—"}</p>
                       {r.notes ? <p className="mt-1 line-clamp-2 text-faint">{r.notes}</p> : null}
                     </td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-xs">
+                      {ctx ? (
+                        <button
+                          type="button"
+                          onClick={() => setExpanded((e) => (e === r.id ? null : r.id))}
+                          className="flex items-center gap-2 text-left text-muted hover:text-fg"
+                          aria-expanded={expanded === r.id}
+                        >
+                          <span className="num flex flex-col gap-0.5 text-[0.6875rem]">
+                            <span>
+                              F&amp;G{" "}
+                              <span className={ctx.fearGreed ? (ctx.fearGreed.value <= 25 ? "text-down" : ctx.fearGreed.value >= 75 ? "text-up" : "text-fg") : ""}>
+                                {ctx.fearGreed ? `${ctx.fearGreed.value} ${ctx.fearGreed.label}` : "—"}
+                              </span>
+                            </span>
+                            <span>
+                              RSI {ctx.coin?.rsi14 ?? "—"} · score {ctx.scorecard ? `${ctx.scorecard.composite > 0 ? "+" : ""}${ctx.scorecard.composite}` : "—"}
+                            </span>
+                          </span>
+                          <ChevronDown className={cn("size-3.5 transition-transform", expanded === r.id && "rotate-180")} />
+                        </button>
+                      ) : (
+                        <span className="text-faint">not recorded</span>
+                      )}
+                    </td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-xs text-muted">{formatDate(r.addedAt)}</td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-right">
                       <WatchlistDialog
@@ -115,7 +148,16 @@ export function WatchlistView({ initial }: { initial: Payload }) {
                       <RemoveFromWatchlistButton id={r.id} symbol={r.symbol} onRemoved={() => void refresh()} />
                     </td>
                   </tr>
-                ))}
+                  {expanded === r.id && ctx ? (
+                    <tr className="border-b border-border/70">
+                      <td colSpan={10} className="px-4 pb-3">
+                        <MarketContextView ctx={ctx} title={`When added · ${formatDate(r.addedAt)}`} defaultOpen />
+                      </td>
+                    </tr>
+                  ) : null}
+                  </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

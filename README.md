@@ -11,12 +11,12 @@ A private, single-user research lab for Binance Spot cryptocurrencies:
 - **Top Traders** (`/traders`) — discover Binance Futures copy-trading leaders (ROI, profit, implied starting capital, drawdown, win rate, copier P&L) and track them, or track anyone manually with logged or CSV-imported trades. Per trader: starting value, daily/weekly returns, monthly ROI, max drawdown, coins bought and sold, entry/exit prices, holding times, and whether the strategy is changing. Binance data comes from unofficial binance.com endpoints (best effort).
 - **Guide** (`/guide`) — in-app instructions: a research workflow, how each screen works and its pitfalls, and what every page does.
 - **Coin pages** (`/crypto/BTCUSDT`) — live price, candlestick/line charts (1m → 1w, 24h → all history), EMA/Bollinger overlays, deterministic indicators, listing status, alerts, notes.
-- **Watchlist** — reasons, notes, target prices, personal ranking, performance since added; removed entries are kept.
+- **Watchlist** — full coin names, reasons, notes, target prices, personal ranking, performance since added, and the same market snapshot captured when a pair is added; removed entries are kept.
 - **Paper portfolio** — theoretical USDT (default $1,000), simulated buys/sells with fees, average-cost accounting, holdings, snapshots and seven portfolio charts.
-- **Decision journal** — thesis, reason, target, horizon, risk, confidence, linked AI report; append-only reviews and revision history.
+- **Decision journal** — thesis, reason, target, horizon, risk, confidence, linked AI report; append-only reviews and revision history. Every decision also stores a market snapshot: Fear & Greed, BTC price/trend, the coin's returns, RSI, distance from its averages, volume, volatility, scorecard, learned-model probability and futures funding/positioning.
 - **Real vs simulated** — mark any simulated trade as executed / partially executed / cancelled on Binance and record the real price, quantity, fee and order reference. Nothing is imported automatically.
 - **AI Research** — streaming chat (OpenAI or Gemini, switched by `.env`) grounded in Binance data and your own records; structured 13-section analysis reports whose stated lean is evaluated at 1h / 24h / 7d / 30d.
-- **Analytics** — win rate, average return, holding periods, "sold too early", "bought near local highs", drawdown, monthly returns, BTC/ETH benchmarks, AI track record.
+- **Analytics** — trade quality (payoff ratio, profit factor, expectancy, break-even win rate, streaks), "what works for you" breakdowns by Fear & Greed, BTC trend, RSI at entry, holding time and weekday, journal confidence vs reviews, automatic insights; win rate, average return, holding periods, "sold too early", "bought near local highs", drawdown, monthly returns, BTC/ETH benchmarks, AI track record.
 - **Alerts** — price, % move, and position profit/loss alerts with in-app notifications.
 
 > **This application never trades.** It does not hold funds, request Binance API keys, trading or withdrawal permissions, seed phrases or private keys. All trades are simulated. Nothing here is financial advice.

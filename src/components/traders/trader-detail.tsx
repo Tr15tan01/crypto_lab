@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip as ChartTooltip, XAxis, YAxis } from "recharts";
-import { ChevronLeft, ExternalLink, FileUp, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ChevronLeft, ExternalLink, FileUp, Pencil, Plus, RefreshCw, Star, Trash2 } from "lucide-react";
 import { useApi } from "@/hooks/use-api";
 import { apiFetch, ApiClientError } from "@/lib/client/api";
 import { Badge, Button, EmptyState, Field, Input, Notice, Panel, PanelBody, PanelHeader, Select, Skeleton, Textarea } from "@/components/ui/primitives";
@@ -13,6 +13,7 @@ import { ChangeText } from "@/components/market/indicators";
 import { CHART, SERIES, formatAxisTime } from "@/components/charts/chart-theme";
 import { cn, formatDate, formatDateTime, formatPercent, formatPrice, formatQuantity, formatRelative, formatUsd } from "@/lib/utils/format";
 import { StrategyBadge, formatHours, spotSymbol } from "./shared";
+import { WatchlistDialog } from "@/components/watchlist/watch-dialogs";
 
 interface Trade {
   _id: string;
@@ -86,6 +87,46 @@ interface Detail {
   syncError: string | null;
   /** Server time the metrics were computed at; open positions are measured to it. */
   asOf: number;
+  holdings: Array<{
+    symbol: string;
+    side: "long" | "short";
+    leverage: number | null;
+    openedAt: number;
+    entryPrice: number;
+    quantity: number | null;
+    notional: number | null;
+    margin: number | null;
+    markPrice: number | null;
+    movePercent: number | null;
+    roePercent: number | null;
+    unrealizedPnl: number | null;
+    partlyClosed: boolean;
+    realizedSoFar: number | null;
+  }>;
+  exposure: {
+    openPositions: number;
+    longNotional: number;
+    shortNotional: number;
+    netBias: number | null;
+    totalMargin: number;
+    avgLeverage: number | null;
+    unrealizedPnl: number | null;
+    opened7d: number;
+    closed7d: number;
+    coins7d: string[];
+  };
+  activity: Array<{
+    t: number;
+    kind: "open" | "close";
+    symbol: string;
+    side: "long" | "short";
+    leverage: number | null;
+    price: number;
+    notional: number | null;
+    pnl: number | null;
+    holdingHours: number | null;
+  }>;
+  capital: Array<{ symbol: string; notional: number; sharePercent: number; avgLeverage: number | null; positions: number; lastTradedAt: number }>;
 }
 
 const th = "px-3 py-2 text-left text-[0.6875rem] font-medium text-muted whitespace-nowrap";
@@ -395,6 +436,178 @@ export function TraderDetail({ id }: { id: string }) {
         <Stat label="Positions" hint={m.stats.avgLeverage ? `avg ${m.stats.avgLeverage.toFixed(1)}× · ${m.stats.longSharePercent?.toFixed(0)}% long` : undefined}>
           {m.stats.trades}<span className="text-xs text-faint"> · {m.stats.open} open</span>
         </Stat>
+      </div>
+
+      <Panel>
+        <PanelHeader
+          title="What they hold now"
+          description={
+            data.holdings.length
+              ? `${data.exposure.openPositions} open position${data.exposure.openPositions === 1 ? "" : "s"}, priced ${binance ? "with live futures mark prices" : "with live spot prices"}. Size is the largest size reached; part of it may already be closed.`
+              : "Positions still open in the stored history."
+          }
+        />
+        {data.holdings.length ? (
+          <>
+            <div className="grid grid-cols-2 gap-2 border-b border-border px-4 py-3 sm:grid-cols-5">
+              <Stat label="Long exposure"><span className="text-up">{formatUsd(data.exposure.longNotional, { compact: true })}</span></Stat>
+              <Stat label="Short exposure"><span className="text-down">{formatUsd(data.exposure.shortNotional, { compact: true })}</span></Stat>
+              <Stat label="Net bias" hint="+100% all long, −100% all short">
+                {data.exposure.netBias !== null ? formatPercent(data.exposure.netBias * 100, { digits: 0 }) : "—"}
+              </Stat>
+              <Stat label="Own capital in use" hint={data.exposure.avgLeverage ? `avg ${data.exposure.avgLeverage.toFixed(1)}× leverage` : undefined}>
+                {formatUsd(data.exposure.totalMargin, { compact: true })}
+              </Stat>
+              <Stat label="Unrealized P&L">
+                <span className={(data.exposure.unrealizedPnl ?? 0) >= 0 ? "text-up" : "text-down"}>
+                  {formatUsd(data.exposure.unrealizedPnl, { sign: true, compact: true })}
+                </span>
+              </Stat>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[0.8125rem]">
+                <thead className="border-b border-border bg-surface-2/50">
+                  <tr>
+                    <th className={th}>Coin</th>
+                    <th className={th}>Side</th>
+                    <th className={th}>Since</th>
+                    <th className={cn(th, "text-right")}>Entry</th>
+                    <th className={cn(th, "text-right")}>Now</th>
+                    <th className={cn(th, "text-right")}>Move</th>
+                    <th className={cn(th, "text-right")}>
+                      <Tooltip content="Return on the trader's own margin: price move × leverage.">
+                        <span className="cursor-help underline decoration-dotted underline-offset-2">On margin</span>
+                      </Tooltip>
+                    </th>
+                    <th className={cn(th, "text-right")}>Size</th>
+                    <th className={cn(th, "text-right")}>Value</th>
+                    <th className={cn(th, "text-right")}>Unrealized</th>
+                    <th className={th} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.holdings.map((h) => (
+                    <tr key={`${h.symbol}${h.openedAt}`} className="border-b border-border last:border-0">
+                      <td className={td}>
+                        <Link href={`/crypto/${spotSymbol(h.symbol)}`} className="font-medium hover:text-accent">{h.symbol}</Link>
+                      </td>
+                      <td className={td}>
+                        <Badge tone={h.side === "long" ? "up" : "down"}>{h.side === "long" ? "Long" : "Short"}{h.leverage ? ` ${h.leverage}×` : ""}</Badge>
+                        {h.partlyClosed ? <Badge tone="accent" className="ml-1">Partly closed</Badge> : null}
+                      </td>
+                      <td className={cn(td, "text-xs text-muted")} title={formatDateTime(h.openedAt)}>{formatRelative(h.openedAt)}</td>
+                      <td className={cn(td, "num text-right")}>{formatPrice(h.entryPrice)}</td>
+                      <td className={cn(td, "num text-right")}>{formatPrice(h.markPrice)}</td>
+                      <td className={cn(td, "text-right")}><ChangeText value={h.movePercent} showIcon={false} /></td>
+                      <td className={cn(td, "text-right")}><ChangeText value={h.roePercent} showIcon={false} /></td>
+                      <td className={cn(td, "num text-right text-muted")}>{formatQuantity(h.quantity)}</td>
+                      <td className={cn(td, "num text-right")}>{formatUsd(h.notional, { compact: true })}</td>
+                      <td className={cn(td, "num text-right", (h.unrealizedPnl ?? 0) >= 0 ? "text-up" : "text-down")}>
+                        {formatUsd(h.unrealizedPnl, { sign: true, compact: true })}
+                      </td>
+                      <td className={td}>
+                        <WatchlistDialog
+                          symbol={spotSymbol(h.symbol)}
+                          trigger={
+                            <button type="button" className="p-1 text-faint hover:text-accent" aria-label={`Watch ${h.symbol}`}>
+                              <Star className="size-3.5" />
+                            </button>
+                          }
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <EmptyState
+            title="No open positions"
+            description={binance ? "Everything in the stored history is closed. Binance may also hide this trader's live positions." : "All logged trades are closed."}
+          />
+        )}
+      </Panel>
+
+      <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
+        <Panel>
+          <PanelHeader
+            title="Activity"
+            description={`What they did and when, newest first. Last 7 days: ${data.exposure.opened7d} opened, ${data.exposure.closed7d} closed${
+              data.exposure.coins7d.length ? ` (${data.exposure.coins7d.map((c) => c.replace(/USDT$/, "")).join(", ")})` : ""
+            }.`}
+          />
+          {data.activity.length ? (
+            <ul className="max-h-[28rem] divide-y divide-border overflow-y-auto">
+              {data.activity.map((e, i) => {
+                const verb =
+                  e.kind === "open"
+                    ? e.side === "long"
+                      ? "Bought (long)"
+                      : "Sold short"
+                    : e.side === "long"
+                      ? "Sold (closed long)"
+                      : "Bought back (closed short)";
+                const dot = e.kind === "open" ? (e.side === "long" ? "bg-up" : "bg-down") : "bg-border-strong";
+                return (
+                  <li key={`${e.t}${e.symbol}${i}`} className="flex items-start gap-3 px-4 py-2 text-xs">
+                    <span className={cn("mt-1 size-2 shrink-0 rounded-full", dot)} aria-hidden />
+                    <div className="min-w-0 flex-1">
+                      <p>
+                        <span className="font-medium">{verb}</span>{" "}
+                        <Link href={`/crypto/${spotSymbol(e.symbol)}`} className="font-mono hover:text-accent">{e.symbol.replace(/USDT$/, "")}</Link>
+                        {e.leverage ? <span className="text-faint"> {e.leverage}×</span> : null} at <span className="num">{formatPrice(e.price)}</span>
+                        {e.notional !== null ? <span className="text-muted"> · {formatUsd(e.notional, { compact: true })}</span> : null}
+                      </p>
+                      {e.kind === "close" ? (
+                        <p className="text-[0.6875rem] text-muted">
+                          {e.pnl !== null ? <span className={e.pnl >= 0 ? "text-up" : "text-down"}>{formatUsd(e.pnl, { sign: true })}</span> : null}
+                          {e.holdingHours !== null ? ` · held ${formatHours(e.holdingHours)}` : ""}
+                        </p>
+                      ) : null}
+                    </div>
+                    <span className="shrink-0 text-[0.6875rem] text-faint" title={formatDateTime(e.t)}>{formatRelative(e.t)}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <EmptyState title="No activity stored" />
+          )}
+        </Panel>
+
+        <Panel>
+          <PanelHeader title="Where the money goes" description="Position value at entry, summed per coin across all stored positions." />
+          {data.capital.length ? (
+            <ul className="divide-y divide-border">
+              {data.capital.slice(0, 12).map((c) => (
+                <li key={c.symbol} className="flex items-center gap-3 px-4 py-2 text-xs">
+                  <Link href={`/crypto/${spotSymbol(c.symbol)}`} className="w-24 shrink-0 truncate font-mono font-medium hover:text-accent">
+                    {c.symbol.replace(/USDT$/, "")}
+                  </Link>
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-3" aria-hidden>
+                    <div className="h-full rounded-full bg-accent" style={{ width: `${Math.max(2, c.sharePercent)}%` }} />
+                  </div>
+                  <span className="num w-10 shrink-0 text-right">{c.sharePercent.toFixed(0)}%</span>
+                  <span className="num w-16 shrink-0 text-right text-muted">{formatUsd(c.notional, { compact: true })}</span>
+                  <span className="w-20 shrink-0 text-right text-[0.6875rem] text-faint">
+                    {c.positions} pos{c.avgLeverage ? ` · ${c.avgLeverage.toFixed(0)}×` : ""}
+                  </span>
+                  <WatchlistDialog
+                    symbol={spotSymbol(c.symbol)}
+                    trigger={
+                      <button type="button" className="p-1 text-faint hover:text-accent" aria-label={`Watch ${c.symbol}`}>
+                        <Star className="size-3.5" />
+                      </button>
+                    }
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState title="No sized positions" description="Position sizes are needed; add quantities to manual trades." />
+          )}
+        </Panel>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">

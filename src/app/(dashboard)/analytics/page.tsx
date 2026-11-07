@@ -7,6 +7,7 @@ import { getAnalytics } from "@/services/analytics/analytics-service";
 import { evaluateDueResearch } from "@/services/research/research-service";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState, Notice, Panel, PanelBody, PanelHeader } from "@/components/ui/primitives";
+import { WhatWorks } from "@/components/analytics/what-works";
 import { ChangeText, Stat } from "@/components/market/indicators";
 import { BenchmarkChart, MonthlyChart } from "@/components/charts/portfolio-charts";
 import { formatDate, formatPercent, formatUsd } from "@/lib/utils/format";
@@ -69,6 +70,8 @@ export default async function AnalyticsPage() {
           />
         </div>
       </Panel>
+
+      <WhatWorks a={a} />
 
       <div className="mb-4 grid gap-4 xl:grid-cols-3">
         <Panel className="xl:col-span-2">

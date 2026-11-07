@@ -375,3 +375,162 @@ export function parseTradesCsv(text: string): { trades: CsvTrade[]; errors: stri
   });
   return { trades, errors: errors.slice(0, 20) };
 }
+
+/* ───────────── What a trader is doing ───────────── */
+
+export interface HoldingView {
+  symbol: string;
+  side: "long" | "short";
+  leverage: number | null;
+  openedAt: number;
+  entryPrice: number;
+  /** Largest size reached, in base units (Binance reports the peak, not the remainder). */
+  quantity: number | null;
+  /** Position value at entry (quantity × entry). */
+  notional: number | null;
+  /** Own capital at entry (notional ÷ leverage). */
+  margin: number | null;
+  markPrice: number | null;
+  /** Price move in the position's favour, percent (before leverage). */
+  movePercent: number | null;
+  /** Return on margin, percent (move × leverage). */
+  roePercent: number | null;
+  unrealizedPnl: number | null;
+  partlyClosed: boolean;
+  realizedSoFar: number | null;
+}
+
+export function holdingsView(
+  open: Array<TradeLike & { status: "open" | "partial" | "closed" }>,
+  markPrice: (symbol: string) => number | null,
+): HoldingView[] {
+  return open
+    .filter((t) => t.status !== "closed")
+    .map((t) => {
+      const mark = markPrice(t.symbol);
+      const dir = t.side === "long" ? 1 : -1;
+      const notional = t.quantity !== null ? t.quantity * t.entryPrice : null;
+      const move = mark !== null && t.entryPrice > 0 ? ((mark - t.entryPrice) / t.entryPrice) * 100 * dir : null;
+      return {
+        symbol: t.symbol,
+        side: t.side,
+        leverage: t.leverage,
+        openedAt: t.openedAt,
+        entryPrice: t.entryPrice,
+        quantity: t.quantity,
+        notional,
+        margin: notional !== null ? notional / (t.leverage && t.leverage > 0 ? t.leverage : 1) : null,
+        markPrice: mark,
+        movePercent: move,
+        roePercent: move !== null ? move * (t.leverage ?? 1) : null,
+        unrealizedPnl: mark !== null && t.quantity !== null ? (mark - t.entryPrice) * t.quantity * dir : null,
+        partlyClosed: (t as { status: string }).status === "partial",
+        realizedSoFar: t.pnl,
+      };
+    })
+    .sort((a, b) => (b.notional ?? 0) - (a.notional ?? 0));
+}
+
+export interface ActivityEvent {
+  t: number;
+  kind: "open" | "close";
+  symbol: string;
+  side: "long" | "short";
+  leverage: number | null;
+  price: number;
+  notional: number | null;
+  pnl: number | null;
+  holdingHours: number | null;
+}
+
+/** Every open and close as a dated event, newest first. */
+export function activityTimeline(trades: TradeLike[], limit = 80): ActivityEvent[] {
+  const events: ActivityEvent[] = [];
+  for (const t of trades) {
+    const notional = t.quantity !== null ? t.quantity * t.entryPrice : null;
+    events.push({ t: t.openedAt, kind: "open", symbol: t.symbol, side: t.side, leverage: t.leverage, price: t.entryPrice, notional, pnl: null, holdingHours: null });
+    if (t.closedAt !== null && t.exitPrice !== null) {
+      events.push({
+        t: t.closedAt,
+        kind: "close",
+        symbol: t.symbol,
+        side: t.side,
+        leverage: t.leverage,
+        price: t.exitPrice,
+        notional: t.quantity !== null ? t.quantity * t.exitPrice : null,
+        pnl: tradePnl(t),
+        holdingHours: (t.closedAt - t.openedAt) / 3_600_000,
+      });
+    }
+  }
+  return events.sort((a, b) => b.t - a.t).slice(0, limit);
+}
+
+export interface CapitalByCoin {
+  symbol: string;
+  /** Sum of position values at entry. */
+  notional: number;
+  sharePercent: number;
+  avgLeverage: number | null;
+  positions: number;
+  lastTradedAt: number;
+}
+
+/** Where the trader puts their money: position value at entry, per coin. */
+export function capitalByCoin(trades: TradeLike[]): CapitalByCoin[] {
+  const map = new Map<string, { notional: number; lev: number[]; n: number; last: number }>();
+  for (const t of trades) {
+    if (t.quantity === null) continue;
+    const e = map.get(t.symbol) ?? { notional: 0, lev: [], n: 0, last: 0 };
+    e.notional += t.quantity * t.entryPrice;
+    if (t.leverage) e.lev.push(t.leverage);
+    e.n++;
+    e.last = Math.max(e.last, t.closedAt ?? t.openedAt);
+    map.set(t.symbol, e);
+  }
+  const total = [...map.values()].reduce((s, e) => s + e.notional, 0);
+  return [...map.entries()]
+    .map(([symbol, e]) => ({
+      symbol,
+      notional: e.notional,
+      sharePercent: total > 0 ? (e.notional / total) * 100 : 0,
+      avgLeverage: e.lev.length ? e.lev.reduce((a, b) => a + b, 0) / e.lev.length : null,
+      positions: e.n,
+      lastTradedAt: e.last,
+    }))
+    .sort((a, b) => b.notional - a.notional);
+}
+
+export interface Exposure {
+  openPositions: number;
+  longNotional: number;
+  shortNotional: number;
+  /** (long − short) ÷ (long + short): +1 all long, −1 all short. */
+  netBias: number | null;
+  totalMargin: number;
+  avgLeverage: number | null;
+  unrealizedPnl: number | null;
+  opened7d: number;
+  closed7d: number;
+  coins7d: string[];
+}
+
+export function exposure(holdings: HoldingView[], trades: TradeLike[], now = Date.now()): Exposure {
+  const long = holdings.filter((h) => h.side === "long").reduce((s, h) => s + (h.notional ?? 0), 0);
+  const short = holdings.filter((h) => h.side === "short").reduce((s, h) => s + (h.notional ?? 0), 0);
+  const levs = holdings.map((h) => h.leverage).filter((l): l is number => l !== null);
+  const upnl = holdings.map((h) => h.unrealizedPnl).filter((v): v is number => v !== null);
+  const weekAgo = now - 7 * 86_400_000;
+  return {
+    openPositions: holdings.length,
+    longNotional: long,
+    shortNotional: short,
+    netBias: long + short > 0 ? (long - short) / (long + short) : null,
+    totalMargin: holdings.reduce((s, h) => s + (h.margin ?? 0), 0),
+    avgLeverage: levs.length ? levs.reduce((a, b) => a + b, 0) / levs.length : null,
+    unrealizedPnl: upnl.length ? upnl.reduce((a, b) => a + b, 0) : null,
+    opened7d: trades.filter((t) => t.openedAt >= weekAgo).length,
+    closed7d: trades.filter((t) => t.closedAt !== null && t.closedAt >= weekAgo).length,
+    coins7d: [...new Set(trades.filter((t) => t.openedAt >= weekAgo).map((t) => t.symbol))].slice(0, 10),
+  };
+}

@@ -26,6 +26,35 @@ export interface UserSettingsDoc {
   updatedAt: Date;
 }
 
+/** Market conditions captured at a decision or watchlist addition (see services/market/context-snapshot). */
+export interface MarketContext {
+  capturedAt: Date;
+  fearGreed: { value: number; label: string } | null;
+  btc: {
+    price: number;
+    change24hPercent: number | null;
+    change7dPercent: number | null;
+    aboveSma50: boolean | null;
+    aboveSma200: boolean | null;
+  } | null;
+  coin: {
+    price: number;
+    change24hPercent: number | null;
+    change7dPercent: number | null;
+    change30dPercent: number | null;
+    rsi14: number | null;
+    volumeVsAverage: number | null;
+    vsEma50Percent: number | null;
+    vsEma200Percent: number | null;
+    atrPercent: number | null;
+    rangePosition90dPercent: number | null;
+    quoteVolume24h: number;
+  } | null;
+  scorecard: { composite: number; label: string } | null;
+  model: { probability: number; trust: number } | null;
+  futures: { fundingRatePercent: number | null; longAccountsPercent: number | null } | null;
+}
+
 export interface WatchlistDoc {
   _id: ObjectId;
   userId: string;
@@ -38,6 +67,8 @@ export interface WatchlistDoc {
   notes?: string;
   targetPrice?: number | null;
   personalRanking?: number | null;
+  /** Market conditions when the pair was added. */
+  contextAtAdd?: MarketContext | null;
   active: boolean;
   removedAt?: Date | null;
   updatedAt: Date;
@@ -429,6 +460,8 @@ export interface DecisionJournalDoc {
   outcome?: JournalReview["verdict"] | null;
   reviews: JournalReview[];
   revisions: JournalRevision[];
+  /** Market conditions at the moment of the decision. */
+  marketContext?: MarketContext | null;
   timestamp: Date;
 }
 

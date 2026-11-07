@@ -16,6 +16,7 @@ import type {
 import type { JournalFields } from "@/lib/validation/schemas";
 import { EMPTY_POSITION, computeBuy, computeSell, type PositionState } from "./accounting";
 import { valuePortfolio, type PortfolioValuation, type PriceQuote } from "./valuation";
+import { attachMarketContext } from "@/services/journal/journal-service";
 
 export const DEFAULT_PORTFOLIO = {
   initialBalance: 1000,
@@ -366,6 +367,7 @@ export async function executeBuy(
       return doc;
     });
     logger.info("portfolio.buy", { symbol: tx.symbol, total: tx.total });
+    await attachMarketContext(tx.journalEntryId, tx.symbol);
     return { transaction: tx, replayed: false };
   } catch (err) {
     return handleTradeError(err, userId, input.idempotencyKey);
@@ -471,6 +473,7 @@ export async function executeSell(
       return doc;
     });
     logger.info("portfolio.sell", { symbol: tx.symbol, realizedPnL: tx.realizedPnL });
+    await attachMarketContext(tx.journalEntryId, tx.symbol);
     return { transaction: tx, replayed: false };
   } catch (err) {
     return handleTradeError(err, userId, input.idempotencyKey);

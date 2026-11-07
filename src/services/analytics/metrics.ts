@@ -208,3 +208,134 @@ export function valueAt(series: Point[], t: number): number | null {
   }
   return ans;
 }
+
+/* ───────────── Trade quality and "what works for you" ───────────── */
+
+/** A position round with its result in percent (realised if closed, unrealised if open). */
+export interface ScoredRound {
+  symbol: string;
+  openedAt: number;
+  closedAt: number | null;
+  holdMs: number;
+  pnl: number;
+  returnPercent: number | null;
+}
+
+export interface TradeQuality {
+  closed: number;
+  wins: number;
+  losses: number;
+  avgWinPercent: number | null;
+  avgLossPercent: number | null;
+  /** Average win ÷ average loss (size of wins vs losses). */
+  payoffRatio: number | null;
+  /** Gross profit ÷ gross loss: above 1 means the strategy made money. */
+  profitFactor: number | null;
+  /** Average P/L per closed round, in currency and percent. */
+  expectancy: number | null;
+  expectancyPercent: number | null;
+  /** Win rate needed to break even at the current payoff ratio. */
+  breakEvenWinRate: number | null;
+  longestWinStreak: number;
+  longestLossStreak: number;
+}
+
+export function tradeQuality(rounds: ScoredRound[]): TradeQuality {
+  const closed = rounds.filter((r) => r.closedAt !== null).sort((a, b) => a.closedAt! - b.closedAt!);
+  const wins = closed.filter((r) => r.pnl > 0);
+  const losses = closed.filter((r) => r.pnl < 0);
+  const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  const avgWin = mean(wins.map((r) => r.returnPercent).filter((v): v is number => v !== null));
+  const avgLoss = mean(losses.map((r) => r.returnPercent).filter((v): v is number => v !== null));
+  const grossWin = wins.reduce((s, r) => s + r.pnl, 0);
+  const grossLoss = -losses.reduce((s, r) => s + r.pnl, 0);
+  const payoff = avgWin !== null && avgLoss !== null && avgLoss < 0 ? avgWin / Math.abs(avgLoss) : null;
+  let streak = 0;
+  let bestW = 0;
+  let bestL = 0;
+  for (const r of closed) {
+    if (r.pnl > 0) streak = streak > 0 ? streak + 1 : 1;
+    else if (r.pnl < 0) streak = streak < 0 ? streak - 1 : -1;
+    else streak = 0;
+    bestW = Math.max(bestW, streak);
+    bestL = Math.max(bestL, -streak);
+  }
+  return {
+    closed: closed.length,
+    wins: wins.length,
+    losses: losses.length,
+    avgWinPercent: avgWin,
+    avgLossPercent: avgLoss,
+    payoffRatio: payoff,
+    profitFactor: grossLoss > 0 ? grossWin / grossLoss : null,
+    expectancy: mean(closed.map((r) => r.pnl)),
+    expectancyPercent: mean(closed.map((r) => r.returnPercent).filter((v): v is number => v !== null)),
+    breakEvenWinRate: payoff !== null ? (1 / (1 + payoff)) * 100 : null,
+    longestWinStreak: bestW,
+    longestLossStreak: bestL,
+  };
+}
+
+export interface Bucket {
+  key: string;
+  label: string;
+  rounds: number;
+  /** Share of rounds with a positive result (closed: realised; open: unrealised). */
+  winRatePercent: number | null;
+  avgReturnPercent: number | null;
+  totalPnl: number;
+}
+
+/** Groups rounds into labelled buckets (in the given order); rounds mapped to null are skipped. */
+export function bucketRounds(
+  rounds: ScoredRound[],
+  keyOf: (r: ScoredRound) => string | null,
+  order: Array<{ key: string; label: string }>,
+): Bucket[] {
+  return order
+    .map(({ key, label }) => {
+      const sel = rounds.filter((r) => keyOf(r) === key);
+      const rets = sel.map((r) => r.returnPercent).filter((v): v is number => v !== null);
+      return {
+        key,
+        label,
+        rounds: sel.length,
+        winRatePercent: rets.length ? (rets.filter((v) => v > 0).length / rets.length) * 100 : null,
+        avgReturnPercent: rets.length ? rets.reduce((a, b) => a + b, 0) / rets.length : null,
+        totalPnl: sel.reduce((s, r) => s + r.pnl, 0),
+      };
+    })
+    .filter((b) => b.rounds > 0);
+}
+
+export interface Insight {
+  tone: "up" | "down" | "info";
+  text: string;
+}
+
+/**
+ * Plain-language takeaways: for each breakdown, the best and worst bucket when they differ
+ * clearly and both have enough trades. Never more than a handful, strongest first.
+ */
+const lc = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+
+export function insightsFrom(groups: Array<{ name: string; buckets: Bucket[] }>, minRounds = 3): Insight[] {
+  const out: Array<Insight & { gap: number }> = [];
+  for (const g of groups) {
+    const usable = g.buckets.filter((b) => b.rounds >= minRounds && b.avgReturnPercent !== null);
+    if (usable.length < 2) continue;
+    const best = usable.reduce((a, b) => (b.avgReturnPercent! > a.avgReturnPercent! ? b : a));
+    const worst = usable.reduce((a, b) => (b.avgReturnPercent! < a.avgReturnPercent! ? b : a));
+    const gap = best.avgReturnPercent! - worst.avgReturnPercent!;
+    if (gap < 2) continue;
+    out.push({
+      tone: "info",
+      gap,
+      text: `${g.name}: your trades ${lc(best.label)} averaged ${best.avgReturnPercent! >= 0 ? "+" : ""}${best.avgReturnPercent!.toFixed(1)}% (${best.rounds} trades) vs ${worst.avgReturnPercent! >= 0 ? "+" : ""}${worst.avgReturnPercent!.toFixed(1)}% ${lc(worst.label)} (${worst.rounds}).`,
+    });
+  }
+  return out
+    .sort((a, b) => b.gap - a.gap)
+    .slice(0, 6)
+    .map((x) => ({ tone: x.tone, text: x.text }));
+}

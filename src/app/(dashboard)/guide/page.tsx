@@ -12,9 +12,144 @@ const SECTIONS = [
   { id: "workflow", title: "A research workflow" },
   { id: "discovery", title: "Discovery screens" },
   { id: "reading", title: "Reading a candidate" },
+  { id: "strategies", title: "Strategies to test" },
   { id: "pages", title: "Every page explained" },
   { id: "data", title: "Data and its limits" },
   { id: "safety", title: "What this app never does" },
+];
+
+interface Strategy {
+  name: string;
+  idea: string;
+  worksWhen: string;
+  howHere: React.ReactNode;
+  entry: string;
+  exit: string;
+  fails: string;
+}
+
+const STRATEGIES: Strategy[] = [
+  {
+    name: "Trend following",
+    idea: "Only own coins that are already going up, and stay in while the trend holds. You give up the bottom and the top to catch the middle.",
+    worksWhen: "Sustained bull phases: BTC above its 200-day average and most coins above their 50-day.",
+    howHere: (
+      <>
+        <P href="/discover">Discovery</P> → Strength vs BTC and Golden cross; check that the <P href="/autopilot">Autopilot</P> market regime is
+        Risk-on; on the coin page confirm the price is above the 50- and 200-day lines.
+      </>
+    ),
+    entry: "Price above the 50-day average, 50-day above 200-day, RSI 50–70 (strong but not stretched).",
+    exit: "Daily close below the 50-day average, or a trailing stop about 2× ATR below the highest close.",
+    fails: "Sideways, choppy markets, where you get stopped out repeatedly. Expect a low win rate offset by large winners.",
+  },
+  {
+    name: "Breakout with volume",
+    idea: "Buy when the price clears its 90-day high on unusually high volume: fresh buyers overpowering old sellers.",
+    worksWhen: "After long ranges, especially when BTC is stable or rising.",
+    howHere: (
+      <>
+        <P href="/signals">Signal Lab</P> shows how 90-day highs and unusual volume have actually performed; find them in{" "}
+        <P href="/discover">Discovery</P> and use Set alerts on the Autopilot card to put the stop in right away.
+      </>
+    ),
+    entry: "Daily close above the 90-day high with volume at least 2× its usual level.",
+    exit: "Stop just below the old high (the breakout level); take part of the profit at 2–3× the risk.",
+    fails: "False breakouts that close back inside the range within days, which is why the stop is tight.",
+  },
+  {
+    name: "Relative-strength rotation",
+    idea: "Hold the few coins beating BTC and rotate out of those that stop beating it. It measures strength against the market, not in isolation.",
+    worksWhen: "Altcoin seasons, when money spreads from BTC into other coins.",
+    howHere: (
+      <>
+        The <P href="/learning">Learning</P> model&apos;s top picks rank coins by their chance to beat BTC over 7 days; review them weekly next to
+        Discovery&apos;s Strength vs BTC screen.
+      </>
+    ),
+    entry: "In the top group for two weekly reviews in a row, with real liquidity (24h volume above $1M).",
+    exit: "Drops out of the top group, or underperforms BTC for two weeks.",
+    fails: "When BTC dominates and altcoins all lag it: stay in BTC or cash instead.",
+  },
+  {
+    name: "Buy fear, trim greed",
+    idea: "Sentiment is contrarian at the extremes: panic tends to mark better entries than euphoria.",
+    worksWhen: "Long-term holders of quality, liquid coins (BTC, ETH, majors) who can wait.",
+    howHere: (
+      <>
+        Every journal entry and watchlist addition records the Fear &amp; Greed index; <P href="/analytics">Analytics</P> → What works for you shows
+        how your own buys did by market mood.
+      </>
+    ),
+    entry: "Fear & Greed at 25 or below; buy in two or three tranches days apart rather than all at once.",
+    exit: "Trim about a third at 75+ (extreme greed) and keep a core position.",
+    fails: "Real bear markets stay fearful for months. Never use leverage or money you need soon.",
+  },
+  {
+    name: "Dollar-cost averaging",
+    idea: "Buy a fixed amount on a fixed schedule, whatever the price. It takes timing out of the decision.",
+    worksWhen: "Long horizons (1–4 years) in assets you expect to survive.",
+    howHere: (
+      <>
+        Simulate it in the <P href="/portfolio">Portfolio</P> with the same amount every week; <P href="/analytics">Analytics</P> compares the result
+        with simply holding BTC.
+      </>
+    ),
+    entry: "Same weekday, same amount, every week (or month).",
+    exit: "A planned target value or date; optionally pause buying in extreme greed.",
+    fails: "Averaging into a coin that keeps falling for good: limit it to major, liquid assets.",
+  },
+  {
+    name: "Volatility squeeze",
+    idea: "An unusually quiet period is usually followed by a big move. Wait for the direction, then join it.",
+    worksWhen: "Any market; most useful on liquid coins trading in a clear range.",
+    howHere: (
+      <>
+        <P href="/discover">Discovery</P> → Early setups → Volatility squeeze. Set price alerts above and below the range from the coin page, then
+        act on whichever side breaks.
+      </>
+    ),
+    entry: "A daily close outside the Bollinger Bands after the squeeze, in the breakout direction only.",
+    exit: "Stop back inside the range; target the height of the range projected from the breakout.",
+    fails: "Breaks that reverse immediately. Never buy the squeeze itself before the direction is known.",
+  },
+  {
+    name: "Study the top traders, don't copy them",
+    idea: "Use consistently profitable traders as a source of ideas and a confirmation, not as a signal to mirror.",
+    worksWhen: "Traders with long histories, drawdowns under about 30%, real capital and positive copier P&L.",
+    howHere: (
+      <>
+        <P href="/traders">Top Traders</P> → Track: their profile shows what they hold now, every buy and sell with size and time, where their
+        money goes, and whether their strategy is changing. Autopilot also counts what top traders opened this week.
+      </>
+    ),
+    entry: "Only when your own analysis agrees with what several tracked traders hold.",
+    exit: "Your own stop and target. They use leverage and may exit long before or after you.",
+    fails: "Survivorship: today's top ROI is often yesterday's luck. Watch for “Changing” strategy badges.",
+  },
+  {
+    name: "Let the evidence vote",
+    idea: "Combine independent views and act only when most of them agree.",
+    worksWhen: "Always, as a filter: it cuts the number of trades and raises their quality.",
+    howHere: (
+      <>
+        A coin qualifies when <P href="/autopilot">Autopilot</P> says Buy, the <P href="/learning">Learning</P> model gives it an above-typical
+        chance to beat BTC, its scorecard is positive, and an AI chat verdict agrees. The accuracy gauges show which of them has been right lately.
+      </>
+    ),
+    entry: "At least three of the four agree; size it with Autopilot's risk-based amount.",
+    exit: "When two of them turn against it, or the stop is hit.",
+    fails: "When every view shares the same blind spot, such as unexpected news. Use stops.",
+  },
+];
+
+const RISK_RULES = [
+  "Risk at most 1% of the portfolio per trade: position size = 1% of the portfolio ÷ the distance to your stop. Autopilot calculates this for you.",
+  "Decide the stop before you buy, and set it as a price alert straight away.",
+  "Keep any single position under 15–25% of the portfolio, and keep at least 5% in cash.",
+  "After three losses in a row, halve your position size until you have a win.",
+  "Record every decision in the Decision Journal (the market snapshot is saved automatically) and review it when your horizon ends.",
+  "Test a strategy for at least 20 paper trades before trusting it; Analytics → Trade quality tells you whether it pays.",
 ];
 
 function Section({ id, title, description, children }: { id: string; title: string; description?: string; children: React.ReactNode }) {
@@ -261,6 +396,36 @@ export default async function GuidePage() {
             />
           </Section>
 
+          <Section
+            id="strategies"
+            title="Strategies to test"
+            description="Well-known approaches and how to run each one with this app. None is guaranteed: test them with paper money and keep the ones your own results support."
+          >
+            <div className="grid gap-3 lg:grid-cols-2">
+              {STRATEGIES.map((st) => (
+                <div key={st.name} className="rounded-lg border border-border bg-surface-2/40 p-3.5">
+                  <p className="text-[0.8125rem] font-semibold text-fg">{st.name}</p>
+                  <p className="mt-1 text-muted">{st.idea}</p>
+                  <dl className="mt-2.5 space-y-1.5 text-xs">
+                    <div><dt className="inline font-medium text-fg">Works when: </dt><dd className="inline text-muted">{st.worksWhen}</dd></div>
+                    <div><dt className="inline font-medium text-fg">In this app: </dt><dd className="inline text-muted">{st.howHere}</dd></div>
+                    <div><dt className="inline font-medium text-up">Entry: </dt><dd className="inline text-muted">{st.entry}</dd></div>
+                    <div><dt className="inline font-medium text-down">Exit: </dt><dd className="inline text-muted">{st.exit}</dd></div>
+                    <div><dt className="inline font-medium text-warn">Fails when: </dt><dd className="inline text-muted">{st.fails}</dd></div>
+                  </dl>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-lg border border-border p-3.5">
+              <p className="text-[0.8125rem] font-semibold text-fg">Rules that apply to every strategy</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted">
+                {RISK_RULES.map((r) => (
+                  <li key={r}>{r}</li>
+                ))}
+              </ul>
+            </div>
+          </Section>
+
           <Section id="pages" title="Every page explained">
             <dl className="space-y-3">
               {[
@@ -297,7 +462,7 @@ export default async function GuidePage() {
                 [
                   "Top Traders",
                   "/traders",
-                  "Discover Binance copy-trading leaders or track anyone manually: returns, drawdown, coins bought and sold, entries, exits, holding times and whether their strategy is changing.",
+                  "Discover Binance copy-trading leaders or track anyone manually. A trader's profile shows what they hold now (priced live, with exposure and leverage), a dated timeline of every buy and sell with size, where their money goes per coin, returns, drawdown, holding times and whether their strategy is changing.",
                 ],
                 [
                   "Coin pages",

@@ -10,6 +10,7 @@ import { ChangeText } from "@/components/market/indicators";
 import { apiFetch, ApiClientError } from "@/lib/client/api";
 import { cn, formatDateTime, formatPrice } from "@/lib/utils/format";
 import { JournalFields, type JournalDraft } from "@/components/portfolio/journal-fields";
+import { MarketContextView, type MarketContextData } from "@/components/market/market-context";
 import { ExecutionBadge, type ExecutionStatus } from "@/components/portfolio/execution-dialog";
 
 export interface JournalRowData {
@@ -29,6 +30,7 @@ export interface JournalRowData {
     outcome?: string | null;
     reviews: Array<{ reviewedAt: string; priceAtReview: number | null; verdict: string; notes?: string }>;
     revisions: Array<{ revisedAt: string; changes: Record<string, { from: unknown; to: unknown }> }>;
+    marketContext?: MarketContextData | null;
     timestamp: string;
   };
   currentPrice: number | null;
@@ -190,6 +192,11 @@ export function JournalEntryCard({ row, showSymbol = true }: { row: JournalRowDa
       ) : (
         <p className="mt-2 text-xs text-faint">No thesis was recorded for this decision.</p>
       )}
+      {e.marketContext ? (
+        <div className="mt-3">
+          <MarketContextView ctx={e.marketContext} title="Market at decision" />
+        </div>
+      ) : null}
       <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs">
         {facts.map(([k, v]) => (
           <div key={k} className="flex gap-1.5">
