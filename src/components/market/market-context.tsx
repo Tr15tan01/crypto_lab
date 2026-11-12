@@ -84,7 +84,7 @@ export function MarketContextView({ ctx, title = "Market at the time", defaultOp
               </span>
             </Chip>
           ) : null}
-          {ctx.model ? <Chip label="Model" tip="Chance to beat BTC over 7 days">{Math.round(ctx.model.probability * 100)}%</Chip> : null}
+          {ctx.model ? <Chip label="Model" tip="The app's model at the time: chance to outperform over 7 days">{Math.round(ctx.model.probability * 100)}%</Chip> : null}
         </span>
         <ChevronDown className={cn("size-3.5 shrink-0 text-faint transition-transform", open && "rotate-180")} />
       </button>
@@ -118,7 +118,7 @@ export function MarketContextView({ ctx, title = "Market at the time", defaultOp
             <Row label="24h volume" value={c ? formatCompact(c.quoteVolume24h) : "—"} />
             <Row label="Volatility (ATR)" value={c?.atrPercent != null ? `${c.atrPercent.toFixed(1)}%/day` : "—"} />
             <Row label="Scorecard" value={ctx.scorecard ? `${ctx.scorecard.composite > 0 ? "+" : ""}${ctx.scorecard.composite} ${ctx.scorecard.label}` : "—"} />
-            <Row label="Model (beat BTC 7d)" value={ctx.model ? `${Math.round(ctx.model.probability * 100)}% · trust ${Math.round(ctx.model.trust * 100)}%` : "—"} />
+            <Row label="Model (outperform 7d)" value={ctx.model ? `${Math.round(ctx.model.probability * 100)}% · trust ${Math.round(ctx.model.trust * 100)}%` : "—"} />
             <Row
               label="Funding / longs"
               value={ctx.futures ? `${ctx.futures.fundingRatePercent != null ? `${ctx.futures.fundingRatePercent.toFixed(3)}%` : "—"} / ${ctx.futures.longAccountsPercent != null ? `${ctx.futures.longAccountsPercent.toFixed(0)}%` : "—"}` : "—"}

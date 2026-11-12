@@ -30,6 +30,7 @@ interface Payload {
 }
 
 const SOURCE_LABEL: Record<Source, string> = { autopilot: "Autopilot calls", chat: "AI chat calls", model: "Model picks" };
+const SOURCE_SHORT: Record<Source, string> = { autopilot: "Autopilot", chat: "AI chat", model: "Model" };
 const MIN_DECIDED = 10;
 
 function verdict(rate: number | null, decided: number) {
@@ -123,7 +124,7 @@ export function AccuracyGauge({ sources, title = "How often is it right?" }: { s
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
             {sources.length > 1 ? (
-              <Segmented label="Whose calls" value={source} onChange={setSource} options={sources.map((s) => ({ value: s, label: SOURCE_LABEL[s] }))} />
+              <Segmented label="Whose calls" value={source} onChange={setSource} options={sources.map((s) => ({ value: s, label: SOURCE_SHORT[s] }))} />
             ) : null}
             <Segmented label="Horizon" value={horizon} onChange={setHorizon} options={[{ value: "24h", label: "24h" }, { value: "7d", label: "7d" }, { value: "30d", label: "30d" }]} />
           </div>
@@ -156,7 +157,7 @@ export function AccuracyGauge({ sources, title = "How often is it right?" }: { s
                   </span>
                 ) : null}
                 {a.avgResultPercent !== null ? (
-                  <span className="text-muted">avg result {formatPercent(a.avgResultPercent, { digits: 1 })}{source === "model" ? " vs BTC" : ""}</span>
+                  <span className="text-muted">avg result {formatPercent(a.avgResultPercent, { digits: 1 })}{source === "model" ? " vs the opposite picks" : ""}</span>
                 ) : null}
               </div>
             </div>

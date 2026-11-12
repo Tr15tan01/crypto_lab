@@ -12,6 +12,7 @@ export const DISCOVERY_SIGNALS = [
   "volatility_squeeze",
   "trend_pullback",
   "accumulation",
+  "fib_pullback",
 ] as const;
 export type DiscoverySignal = (typeof DISCOVERY_SIGNALS)[number];
 
@@ -42,6 +43,10 @@ export const THRESHOLDS = {
   accumulationDays: 20,
   accumulationFlow: 0.2,
   accumulationMaxMovePercent: 6,
+  /** "Fibonacci pullback": an up-swing of at least `fibMinSwingPercent` within `fibLookbackDays`, high no older than `fibMaxDaysSinceHigh`, price back in the 50–65% retracement band. */
+  fibLookbackDays: 90,
+  fibMinSwingPercent: 25,
+  fibMaxDaysSinceHigh: 30,
   /** Below this 24h quote volume (USDT) a pair is flagged as thinly traded. */
   thinLiquidity: 500_000,
 } as const;
@@ -78,6 +83,10 @@ export const SIGNAL_INFO: Record<DiscoverySignal, { label: string; description: 
   trend_pullback: {
     label: "Trend pullback",
     description: `Long-term uptrend (50-day above 200-day, price above the 200-day) with RSI(14) dipping to ${THRESHOLDS.pullbackRsiLow}–${THRESHOLDS.pullbackRsiHigh}: a dip inside an uptrend.`,
+  },
+  fib_pullback: {
+    label: "Fibonacci pullback",
+    description: `After a rise of ${THRESHOLDS.fibMinSwingPercent}%+ that peaked within ${THRESHOLDS.fibMaxDaysSinceHigh} days, the price has given back 50–65% of it (the "golden pocket" between the 0.5 and 0.618 Fibonacci levels), where pullbacks often end.`,
   },
   accumulation: {
     label: "Accumulation",

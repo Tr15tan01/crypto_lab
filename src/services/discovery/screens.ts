@@ -1,6 +1,7 @@
 import type { Kline } from "@/services/binance/schemas";
 import type { MarketTicker } from "@/services/binance/market-data";
 import { bollinger, last, rsi, sma } from "@/services/indicators/core";
+import { isFibPullback } from "@/services/indicators/fibonacci";
 import { pctChange } from "@/lib/utils/math";
 import { formatCompact } from "@/lib/utils/format";
 import { THRESHOLDS, type DiscoverySignal } from "./signals";
@@ -174,6 +175,17 @@ export function analyzePair(
     rsi14 !== null && rsi14 >= THRESHOLDS.pullbackRsiLow && rsi14 <= THRESHOLDS.pullbackRsiHigh
   ) {
     signals.push("trend_pullback");
+  }
+
+  if (
+    closed.length >= THRESHOLDS.fibLookbackDays &&
+    isFibPullback(closed, closed.length - 1, price, {
+      lookback: THRESHOLDS.fibLookbackDays,
+      minSwingPercent: THRESHOLDS.fibMinSwingPercent,
+      maxDaysSinceHigh: THRESHOLDS.fibMaxDaysSinceHigh,
+    })
+  ) {
+    signals.push("fib_pullback");
   }
 
   const flow = volumeFlow(closed, THRESHOLDS.accumulationDays);

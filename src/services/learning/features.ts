@@ -23,8 +23,6 @@ export const FEATURES = [
   { key: "volumeFlow", label: "20-day buy/sell volume flow", group: "Volume" },
   { key: "rangePos90", label: "Position in 90-day range", group: "Range" },
   { key: "drawdown180", label: "Drawdown from 180-day high", group: "Range" },
-  { key: "btcRet30", label: "BTC 30-day return (market regime)", group: "Market" },
-  { key: "btcTrend", label: "BTC above its 50-day average", group: "Market" },
 ] as const;
 
 export type FeatureKey = (typeof FEATURES)[number]["key"];
@@ -36,21 +34,11 @@ const dayOf = (t: number) => Math.floor(t / DAY);
 
 export interface BtcContext {
   closeByDay: Map<number, number>;
-  /** BTC above its 50-day SMA, by day. */
-  trendByDay: Map<number, boolean>;
 }
 
 export function btcContext(btc: Kline[] | null): BtcContext | null {
   if (!btc?.length) return null;
-  const closes = btc.map((k) => k.close);
-  const s50 = sma(closes, 50);
-  const closeByDay = new Map<number, number>();
-  const trendByDay = new Map<number, boolean>();
-  btc.forEach((k, i) => {
-    closeByDay.set(dayOf(k.openTime), k.close);
-    if (s50[i] != null) trendByDay.set(dayOf(k.openTime), k.close > s50[i]!);
-  });
-  return { closeByDay, trendByDay };
+  return { closeByDay: new Map(btc.map((k) => [dayOf(k.openTime), k.close])) };
 }
 
 /** Feature vectors per candle index (null during warm-up or when BTC data is missing that day). */
@@ -90,8 +78,7 @@ export function featureRows(candles: Kline[], btc: BtcContext | null): Array<num
     const r90 = ret(i, 90);
     const b7 = btcRet(i, 7);
     const b30 = btcRet(i, 30);
-    const btcTrend = btc?.trendByDay.get(dayOf(candles[i]!.openTime));
-    if (r7 === null || r30 === null || r90 === null || b7 === null || b30 === null || btcTrend === undefined) continue;
+    if (r7 === null || r30 === null || r90 === null || b7 === null || b30 === null) continue;
     if (s50[i] == null || s200[i] == null || r14[i] == null || a14[i] == null || width[i] == null) continue;
 
     const sigIdx = i - firstMacd;
@@ -137,8 +124,6 @@ export function featureRows(candles: Kline[], btc: BtcContext | null): Array<num
       total > 0 ? flow / total : 0,
       hi90 > lo90 ? (c - lo90) / (hi90 - lo90) : 0.5,
       hi180 > 0 ? (c / hi180 - 1) * 100 : 0,
-      b30,
-      btcTrend ? 1 : 0,
     ];
   }
   return out;
@@ -148,20 +133,22 @@ export interface Sample {
   symbol: string;
   t: number;
   x: number[];
-  /** 1 when the pair beat BTC over the horizon. */
+  /** 1 when the pair did better than the typical (median) coin that day; see `labelAgainstMedian`. */
   y: 0 | 1;
   /** Pair return minus BTC return over the horizon, percent. */
   excess: number;
 }
 
 /**
- * Labelled samples from one pair: features on day i, target = did the pair beat BTC from the
+ * Labelled samples from one pair: features on day i, excess = pair return minus BTC return from the
  * close of day i to the close of day i + horizon. Sampled every `stride` days to limit overlap.
  */
 export function samplesFor(symbol: string, candles: Kline[], btc: BtcContext, horizon = 7, stride = 3): Sample[] {
   const rows = featureRows(candles, btc);
   const out: Sample[] = [];
-  for (let i = WARMUP; i + horizon < candles.length; i += stride) {
+  for (let i = WARMUP; i + horizon < candles.length; i++) {
+    // Sampled on the same calendar days for every pair, so coins can be compared within a day.
+    if (dayOf(candles[i]!.openTime) % stride !== 0) continue;
     const x = rows[i];
     if (!x) continue;
     const a = btc.closeByDay.get(dayOf(candles[i]!.openTime));
@@ -170,6 +157,31 @@ export function samplesFor(symbol: string, candles: Kline[], btc: BtcContext, ho
     const excess = (candles[i + horizon]!.close / candles[i]!.close - 1) * 100 - (b / a - 1) * 100;
     if (!Number.isFinite(excess)) continue;
     out.push({ symbol, t: candles[i]!.closeTime, x, y: excess > 0 ? 1 : 0, excess });
+  }
+  return out;
+}
+
+/**
+ * Sets each sample's label to "did better than the median coin sampled on the same day".
+ * Comparing coins with each other removes the whole market's move, which no feature here can
+ * predict reliably; what is left (which coins lead and which lag) is far more stable. Days with
+ * fewer than `minPerDay` coins are dropped.
+ */
+export function labelAgainstMedian(samples: Sample[], minPerDay = 10): Sample[] {
+  const byDay = new Map<number, Sample[]>();
+  for (const s of samples) {
+    const d = dayOf(s.t);
+    const list = byDay.get(d);
+    if (list) list.push(s);
+    else byDay.set(d, [s]);
+  }
+  const out: Sample[] = [];
+  for (const list of byDay.values()) {
+    if (list.length < minPerDay) continue;
+    const sorted = list.map((s) => s.excess).sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+    for (const s of list) out.push({ ...s, y: s.excess > median ? 1 : 0, excess: s.excess - median });
   }
   return out;
 }

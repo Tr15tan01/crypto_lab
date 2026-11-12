@@ -40,6 +40,50 @@ export function IndicatorPanel({ s, error }: { s: IndicatorSummary | null; error
         <Row label="Swing support" value={s.levels.support.length ? s.levels.support.map((v) => formatPrice(v)).join(" · ") : "—"} />
         <Row label="Swing resistance" value={s.levels.resistance.length ? s.levels.resistance.map((v) => formatPrice(v)).join(" · ") : "—"} />
       </dl>
+      {s.fib ? (
+        <div>
+          <p className="label-caps mb-1 flex items-center gap-1.5">
+            Fibonacci levels
+            <Tooltip content="Retracement levels of the biggest swing in the last 90 days. Many traders watch them as support and resistance; Signal Lab tests whether pullbacks to the 0.5–0.618 zone actually paid.">
+              <Info className="size-3" aria-label="About Fibonacci levels" />
+            </Tooltip>
+          </p>
+          <p className="mb-1 text-[0.6875rem] text-muted">
+            {s.fib.direction === "up" ? "Up-swing" : "Down-swing"} {formatPrice(s.fib.direction === "up" ? s.fib.low : s.fib.high)} →{" "}
+            {formatPrice(s.fib.direction === "up" ? s.fib.high : s.fib.low)} ({formatPercent(s.fib.swingPercent, { sign: false, digits: 0 })}) ·{" "}
+            {Math.round(Math.max(0, s.fib.retraced) * 100)}% retraced
+            {s.fib.inGoldenPocket ? <span className="ml-1 text-accent">· in the golden pocket</span> : null}
+          </p>
+          <dl className="divide-y divide-border/60">
+            {s.fib.retracements.map((r) => {
+              const dist = ((r.price - s.price) / s.price) * 100;
+              const isNearest = s.fib?.nearest?.ratio === r.ratio;
+              return (
+                <Row
+                  key={r.ratio}
+                  label={`${r.ratio}${r.ratio === 0.618 ? " (golden)" : ""}`}
+                  value={
+                    <span className={isNearest ? "text-accent" : undefined}>
+                      {formatPrice(r.price)} <span className="text-faint">{formatPercent(dist, { digits: 1 })}</span>
+                    </span>
+                  }
+                />
+              );
+            })}
+            {s.fib.extensions.map((r) => (
+              <Row
+                key={r.ratio}
+                label={`${r.ratio} extension (target)`}
+                value={
+                  <>
+                    {formatPrice(r.price)} <span className="text-faint">{formatPercent(((r.price - s.price) / s.price) * 100, { digits: 1 })}</span>
+                  </>
+                }
+              />
+            ))}
+          </dl>
+        </div>
+      ) : null}
       <div>
         <p className="label-caps mb-2">Conventional readings</p>
         <ul className="space-y-2">

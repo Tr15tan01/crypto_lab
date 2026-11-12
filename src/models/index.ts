@@ -388,6 +388,8 @@ export interface LearningRunDoc {
     spreadPercent: number;
   };
   train: { metrics: import("@/services/learning/model").Metrics };
+  /** Walk-forward validation over several periods (runs from model version 2 on). */
+  validation?: import("@/services/learning/model").Validation;
   /** 0 … 1: how much Autopilot relies on the model, derived from the out-of-sample AUC. */
   trust: number;
   model: import("@/services/learning/model").TrainedModel;

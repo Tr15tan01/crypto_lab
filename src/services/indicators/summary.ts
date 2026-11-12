@@ -1,5 +1,6 @@
 import type { Kline } from "@/services/binance/schemas";
 import { atr, bollinger, ema, last, logReturnStdDev, macd, rsi, sma, swingLevels } from "./core";
+import { fibonacciLevels, type FibLevels } from "./fibonacci";
 
 export type Reading = "bullish" | "bearish" | "neutral";
 
@@ -21,6 +22,10 @@ export interface IndicatorSummary {
   ema50: number | null;
   ema200: number | null;
   sma50: number | null;
+  /** 20-day simple average: the trend line used by the exit rule. */
+  sma20: number | null;
+  /** Close of the last completed candle (the live price is `price`). */
+  lastClose: number | null;
   bollinger: { upper: number; middle: number; lower: number; bandwidthPercent: number; percentB: number } | null;
   atr14: number | null;
   atrPercent: number | null;
@@ -29,6 +34,8 @@ export interface IndicatorSummary {
   returns: Record<string, number | null>;
   range: { high: number; low: number; positionPercent: number | null } | null;
   levels: { support: number[]; resistance: number[] };
+  /** Fibonacci levels of the dominant swing in the last 90 candles. */
+  fib: FibLevels | null;
   signals: IndicatorSignal[];
   warnings: string[];
 }
@@ -182,6 +189,8 @@ export function summarizeIndicators(klines: Kline[], interval: string, currentPr
     ema50,
     ema200,
     sma50,
+    sma20: last(sma(closes, 20)),
+    lastClose: closes.length ? closes[closes.length - 1]! : null,
     bollinger:
       bbU !== null && bbM !== null && bbL !== null
         ? {
@@ -202,6 +211,7 @@ export function summarizeIndicators(klines: Kline[], interval: string, currentPr
     returns,
     range,
     levels: swingLevels(closed.slice(-120), price),
+    fib: fibonacciLevels(closed, price, 90),
     signals,
     warnings,
   };

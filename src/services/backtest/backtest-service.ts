@@ -7,13 +7,14 @@ import { isLikelyTokenizedStock } from "@/services/market/asset-names";
 import { externalCache } from "@/services/external/http";
 import { MarketCache } from "@/services/binance/cache";
 import { runBacktest, type BacktestResult } from "./signal-backtest";
+import { runExitBacktest, type ExitBacktestResult } from "./exit-backtest";
 
 /**
  * Signal Lab: runs the signal backtest over the most liquid pairs of the current discovery scan
  * with up to 1000 daily candles each (~2.7 years). Costs ~100 Binance requests, so the result is
  * cached for 12 hours and persisted.
  */
-const KEY = "backtest:signals:v1";
+const KEY = "backtest:signals:v2";
 const TTL = 12 * 60 * 60;
 const PAIRS = 100;
 const CANDLES = 1000;
@@ -75,6 +76,19 @@ async function compute(): Promise<SignalBacktest> {
   const result = runBacktest(pairs.filter((p) => p.symbol !== "BTCUSDT"), btc);
   logger.info("backtest.computed", { pairs: result.pairs, ms: Date.now() - started });
   return { ...result, universe: pairs.map((p) => p.symbol) };
+}
+
+/** Exit-rule comparison on the same universe; cached like the signal backtest. */
+export async function getExitBacktest(): Promise<MarketResult<ExitBacktestResult>> {
+  return externalCache().get(
+    "backtest:exits:v1",
+    TTL,
+    async () => {
+      const { pairs, btc } = await loadUniverseHistories();
+      return runExitBacktest(pairs.filter((p) => p.symbol !== "BTCUSDT"), btc);
+    },
+    { persist: true, persistEverySeconds: TTL },
+  );
 }
 
 export async function getSignalBacktest(): Promise<MarketResult<SignalBacktest>> {

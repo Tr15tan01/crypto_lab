@@ -9,6 +9,7 @@ import { holdingRows } from "@/services/portfolio/view";
 import { monthlyReturns } from "@/services/analytics/metrics";
 import { serialize } from "@/types/serialized";
 import { PageHeader } from "@/components/layout/page-header";
+import { AutoRefresh } from "@/components/layout/auto-refresh";
 import { EmptyState, Notice, Panel, PanelBody, PanelHeader } from "@/components/ui/primitives";
 import { ChangeText, Freshness, Stat } from "@/components/market/indicators";
 import { HoldingsTable } from "@/components/portfolio/holdings-table";
@@ -74,7 +75,12 @@ export default async function PortfolioPage() {
       <PageHeader
         title="Portfolio"
         description={`Paper portfolio started ${p.createdAt.toLocaleDateString("en-US", { dateStyle: "medium" })} with ${formatUsd(p.initialBalance)} theoretical ${p.quoteAsset}. Accounting: average cost basis, fees included in cost.`}
-        actions={<Freshness fetchedAt={state.pricesFetchedAt} stale={state.pricesStale} />}
+        actions={
+          <>
+            <Freshness fetchedAt={state.pricesFetchedAt} stale={state.pricesStale} />
+            <AutoRefresh />
+          </>
+        }
       />
 
       {v.unpricedSymbols.length ? (

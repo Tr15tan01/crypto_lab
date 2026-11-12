@@ -93,6 +93,23 @@ export function assetName(baseAsset: string): string | null {
   return ASSET_NAMES[baseAsset] ?? null;
 }
 
+/** Gold-backed, wrapped and staked-wrapper tokens: they track another asset, not their own market. */
+const TRACKER_ASSETS = new Set(["PAXG", "XAUT", "WBTC", "WBETH", "BETH", "BNSOL", "WSTETH", "CBBTC", "RWUSD", "USD1", "USDE", "USDS", "U"]);
+
+/**
+ * True for assets that are not coins to "pick": trackers above, or anything that barely moves
+ * (median absolute daily move under 0.35%, i.e. pegged). Used to keep them out of model training.
+ */
+export function isTrackerOrPegged(baseAsset: string, closes: number[]): boolean {
+  if (TRACKER_ASSETS.has(baseAsset)) return true;
+  const recent = closes.slice(-120);
+  if (recent.length < 30) return false;
+  const moves: number[] = [];
+  for (let i = 1; i < recent.length; i++) if (recent[i - 1]! > 0) moves.push(Math.abs(recent[i]! / recent[i - 1]! - 1) * 100);
+  moves.sort((a, b) => a - b);
+  return (moves[Math.floor(moves.length / 2)] ?? 1) < 0.35;
+}
+
 /**
  * Binance lists tokenized stocks and ETFs as "<TICKER>B" (AAPLB, NVDAB, SOXSB…). There is no
  * flag for them in exchangeInfo, so this is a heuristic: 4+ letters ending in B and not a known

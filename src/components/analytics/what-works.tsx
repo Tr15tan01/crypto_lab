@@ -94,53 +94,57 @@ export function WhatWorks({ a }: { a: Analytics }) {
               .map((b) => (
                 <div key={b.name} className="bg-surface p-4">
                   <p className="mb-2 text-xs font-medium">{b.name}</p>
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="text-[0.65625rem] text-faint">
-                        <th className="pb-1 text-left font-medium" />
-                        <th className="pb-1 text-right font-medium">Trades</th>
-                        <th className="pb-1 text-right font-medium">Win</th>
-                        <th className="pb-1 text-right font-medium">Avg</th>
-                        <th className="pb-1" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {b.buckets.map((x) => (
-                        <tr key={x.key} className="border-t border-border/60">
-                          <td className="py-1 pr-2 text-muted">{x.label.replace(/^(Bought (in|when|while|on) )/i, "")}</td>
-                          <td className="num py-1 text-right">{x.rounds}</td>
-                          <td className="num py-1 text-right">{x.winRatePercent !== null ? `${x.winRatePercent.toFixed(0)}%` : "—"}</td>
-                          <td className={cn("num py-1 text-right", (x.avgReturnPercent ?? 0) >= 0 ? "text-up" : "text-down")}>
-                            {x.avgReturnPercent !== null ? formatPercent(x.avgReturnPercent, { digits: 1 }) : "—"}
-                          </td>
-                          <td className="py-1 pl-2"><ReturnBar value={x.avgReturnPercent} max={max} /></td>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-[0.65625rem] text-faint">
+                          <th className="pb-1 text-left font-medium" />
+                          <th className="pb-1 text-right font-medium">Trades</th>
+                          <th className="pb-1 text-right font-medium">Win</th>
+                          <th className="pb-1 text-right font-medium">Avg</th>
+                          <th className="pb-1" />
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {b.buckets.map((x) => (
+                          <tr key={x.key} className="border-t border-border/60">
+                            <td className="py-1 pr-2 text-muted">{x.label.replace(/^(Bought (in|when|while|on) )/i, "")}</td>
+                            <td className="num py-1 text-right">{x.rounds}</td>
+                            <td className="num py-1 text-right">{x.winRatePercent !== null ? `${x.winRatePercent.toFixed(0)}%` : "—"}</td>
+                            <td className={cn("num py-1 text-right", (x.avgReturnPercent ?? 0) >= 0 ? "text-up" : "text-down")}>
+                              {x.avgReturnPercent !== null ? formatPercent(x.avgReturnPercent, { digits: 1 }) : "—"}
+                            </td>
+                            <td className="py-1 pl-2"><ReturnBar value={x.avgReturnPercent} max={max} /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               ))}
             {w.confidence.length ? (
               <div className="bg-surface p-4">
                 <p className="mb-2 text-xs font-medium">Your confidence vs your reviews</p>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-[0.65625rem] text-faint">
-                      <th className="pb-1 text-left font-medium" />
-                      <th className="pb-1 text-right font-medium">Reviewed</th>
-                      <th className="pb-1 text-right font-medium">Judged correct</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {w.confidence.map((c) => (
-                      <tr key={c.key} className="border-t border-border/60">
-                        <td className="py-1 text-muted">{c.label}</td>
-                        <td className="num py-1 text-right">{c.reviewed}</td>
-                        <td className="num py-1 text-right">{c.correctPercent !== null ? `${c.correctPercent.toFixed(0)}%` : "—"}</td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-[0.65625rem] text-faint">
+                        <th className="pb-1 text-left font-medium" />
+                        <th className="pb-1 text-right font-medium">Reviewed</th>
+                        <th className="pb-1 text-right font-medium">Judged correct</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {w.confidence.map((c) => (
+                        <tr key={c.key} className="border-t border-border/60">
+                          <td className="py-1 text-muted">{c.label}</td>
+                          <td className="num py-1 text-right">{c.reviewed}</td>
+                          <td className="num py-1 text-right">{c.correctPercent !== null ? `${c.correctPercent.toFixed(0)}%` : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
                 <p className="mt-2 text-[0.65625rem] text-faint">If high-confidence decisions are not judged right more often, your confidence is not yet a useful signal.</p>
               </div>
             ) : null}

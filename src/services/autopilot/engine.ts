@@ -61,7 +61,7 @@ export interface EngineInput {
    */
   signalEdges?: Partial<Record<DiscoverySignal, { edge: number; tStat: number; events: number }>> | null;
   /**
-   * The learning model's probability that the pair beats BTC over 7 days, its base rate, and
+   * The learning model's probability that the pair does better than the typical coin over 7 days, its base rate, and
    * how much it is trusted (0 … 1, from its out-of-sample AUC). Weight scales with trust.
    */
   model?: { probability: number; baseRate: number; trust: number } | null;
@@ -103,6 +103,8 @@ export interface Recommendation {
   signals: DiscoverySignal[];
   cautions: string[];
   holding: { quantity: number; averageCost: number; marketValue: number; pnlPercent: number } | null;
+  /** How to get out: trend line and safety stop (positions and buy ideas). */
+  exitPlan: ExitPlan | null;
   /** 90-day daily-return correlation with BTC (set by the service). */
   btcCorrelation?: number | null;
   /** The learning model's view, when a trained model exists (set by the service). */
@@ -272,7 +274,7 @@ export function buildFactors(input: EngineInput): Factor[] {
       name: "Learned model",
       score: clamp(edgePts / 5, -2, 2),
       weight: Math.round(0.18 * input.model.trust * 100) / 100,
-      note: `${(input.model.probability * 100).toFixed(0)}% chance to beat BTC in 7d (typical ${(input.model.baseRate * 100).toFixed(0)}%), model trust ${(input.model.trust * 100).toFixed(0)}%`,
+      note: `${(input.model.probability * 100).toFixed(0)}% chance to outperform the typical coin in 7d (typical ${(input.model.baseRate * 100).toFixed(0)}%), model trust ${(input.model.trust * 100).toFixed(0)}%`,
     });
   }
 
@@ -313,10 +315,15 @@ export function tradeLevels(daily: IndicatorSummary): Levels | null {
   if (!atr || !Number.isFinite(price) || price <= 0) return null;
   const support = daily.levels.support[0] ?? null;
   const resistance = daily.levels.resistance.find((r) => r > price + atr) ?? null;
-  let stop = support !== null && support > price - 3 * atr ? Math.min(support - 0.5 * atr, price - atr) : price - 2 * atr;
+  // Safety stop 3×ATR away: in the exit backtest (Signal Lab) tighter stops were hit by ordinary
+  // daily noise and cut returns. A support level 2–4×ATR below is used when there is one.
+  let stop = price - 3 * atr;
+  if (support !== null && support < price - 2 * atr && support > price - 4 * atr) stop = support - 0.5 * atr;
   stop = Math.max(stop, price * 0.75);
   const risk = price - stop;
-  let target = resistance ?? price + 3 * atr;
+  // Reference target: the next swing resistance, else the 1.272 Fibonacci extension of an up-swing.
+  const fibExt = daily.fib?.direction === "up" ? (daily.fib.extensions.find((e) => e.price > price + atr)?.price ?? null) : null;
+  let target = resistance ?? fibExt ?? price + 4.5 * atr;
   // Demand at least 1.5:1 reward/risk; otherwise aim at the 1.5R level and let the R:R speak.
   target = Math.max(target, price + 1.5 * risk);
   const entryLow = Math.max(stop + 0.5 * atr, price - 0.75 * atr, support ?? 0);
@@ -325,6 +332,37 @@ export function tradeLevels(daily: IndicatorSummary): Levels | null {
     target,
     stop,
     riskReward: (target - price) / risk,
+  };
+}
+
+export interface ExitPlan {
+  /** The 20-day average. The rule: sell on a daily close below it. */
+  trendLine: number | null;
+  /** The last completed daily candle closed below the trend line. */
+  trendBroken: boolean;
+  /** Safety stop 3×ATR below the entry (new ideas) or the average cost (positions). */
+  hardStop: number | null;
+  hardStopHit: boolean;
+  /** How far the price is above the trend line, percent (negative when below). */
+  cushionPercent: number | null;
+}
+
+/**
+ * The exit rule that held up best in the exit backtest across every kind of entry: get out on
+ * the first daily close below the 20-day average, with a wide safety stop for sudden drops.
+ * No fixed profit target: targets cut the winners that pay for the losers.
+ */
+export function exitPlanFor(daily: IndicatorSummary, basis: number): ExitPlan {
+  const atr = daily.atr14;
+  const line = daily.sma20;
+  const ref = daily.lastClose ?? daily.price;
+  const hardStop = atr && basis > 0 ? Math.max(basis - 3 * atr, basis * 0.75) : null;
+  return {
+    trendLine: line,
+    trendBroken: line !== null && ref < line,
+    hardStop,
+    hardStopHit: hardStop !== null && daily.price <= hardStop,
+    cushionPercent: line ? (daily.price / line - 1) * 100 : null,
   };
 }
 
@@ -357,6 +395,9 @@ export function decide(input: EngineInput, regime: Regime, sizing: SizingInput):
   let sellPercent: number | null = null;
   let size: { allocationPercent: number; amount: number } | null = null;
   let holdingView: Recommendation["holding"] = null;
+  let plan: ExitPlan | null = null;
+  // Never buy what the exit rule would sell: a new position needs the price above its 20-day average.
+  const belowTrend = daily.sma20 !== null && (daily.lastClose ?? price) < daily.sma20;
 
   if (holding && holding.quantity > 0) {
     const marketValue = holding.quantity * price;
@@ -364,8 +405,24 @@ export function decide(input: EngineInput, regime: Regime, sizing: SizingInput):
     holdingView = { quantity: holding.quantity, averageCost: holding.averageCost, marketValue, pnlPercent };
     const allocation = sizing.portfolioValue > 0 ? (marketValue / sizing.portfolioValue) * 100 : 0;
     const brokeDown = daily.ema50 !== null && daily.ema200 !== null && price < daily.ema50 && daily.ema50 < daily.ema200;
+    plan = exitPlanFor(daily, holding.averageCost);
 
-    if (score <= -35 || (brokeDown && score < -10)) {
+    if (plan.trendBroken && plan.trendLine !== null) {
+      // The exit rule fires. Sell everything unless the other evidence is still clearly positive.
+      action = score < 15 ? "SELL" : "TRIM";
+      sellPercent = score < 15 ? 100 : 50;
+      timing = "exit_now";
+      timingNote =
+        `Exit rule triggered: the last daily close (${fmt(daily.lastClose ?? price)}) is below the 20-day average (${fmt(plan.trendLine)}). ` +
+        (score < 15
+          ? "This was the best-performing exit in the backtest; sell rather than hope."
+          : "Other evidence is still positive, so sell half now and the rest if it does not close back above the average within a few days.");
+    } else if (plan.hardStopHit && score < 15) {
+      action = "SELL";
+      sellPercent = 100;
+      timing = "exit_now";
+      timingNote = `Safety stop hit: the price is more than 3×ATR below your average cost (stop ${fmt(plan.hardStop!)}). Cut the loss.`;
+    } else if (score <= -35 || (brokeDown && score < -10)) {
       action = "SELL";
       sellPercent = 100;
       timing = "exit_now";
@@ -389,9 +446,14 @@ export function decide(input: EngineInput, regime: Regime, sizing: SizingInput):
       timingNote = timing === "now" ? "Setup still strong and the position is below its size limit." : `Strong but stretched — add near ${fmt(levels.entry.low)}.`;
     } else {
       action = "HOLD";
-      timingNote = levels ? `Keep a stop near ${fmt(levels.stop)}; re-check if price closes below it.` : "No change suggested.";
+      timingNote =
+        plan.trendLine !== null
+          ? `Trend intact (${plan.cushionPercent !== null ? `${plan.cushionPercent.toFixed(1)}% above` : "above"} the 20-day average). Sell on a daily close below ${fmt(plan.trendLine)}.`
+          : levels
+            ? `Keep a stop near ${fmt(levels.stop)}; re-check if price closes below it.`
+            : "No change suggested.";
     }
-  } else if (score >= 35 && levels && levels.riskReward >= 1.5 && regime.mode !== "risk_off") {
+  } else if (score >= 35 && levels && levels.riskReward >= 1.5 && regime.mode !== "risk_off" && !belowTrend) {
     action = "BUY";
     size = positionSize(price, levels.stop, sizing, regime.sizeMultiplier * (score >= 55 ? 1 : 0.7));
     const stretched = (daily.rsi14 ?? 50) > 70 || (daily.ema20 !== null && price > daily.ema20 + 2 * atr);
@@ -414,7 +476,9 @@ export function decide(input: EngineInput, regime: Regime, sizing: SizingInput):
   } else if (score >= 15) {
     action = "WATCH";
     timingNote =
-      regime.mode === "risk_off" && score >= 35
+      belowTrend && score >= 35 && regime.mode !== "risk_off"
+        ? `Good setup, but the last daily close is below the 20-day average (${fmt(daily.sma20!)}): the exit rule would sell it straight away. Buy only after a daily close back above it.`
+        : regime.mode === "risk_off" && score >= 35
         ? "Good setup, but the overall market is risk-off — wait for BTC to recover first."
         : levels && levels.riskReward < 1.5
           ? "Constructive, but the reward/risk to the next resistance is poor right now."
@@ -426,6 +490,17 @@ export function decide(input: EngineInput, regime: Regime, sizing: SizingInput):
     action = "AVOID";
     timingNote = score <= -35 ? "Evidence points down. Not a buy; a short-term bearish call is recorded." : "More evidence against than for — stay out.";
   }
+
+  if (!plan && (action === "BUY" || action === "WATCH")) plan = exitPlanFor(daily, price);
+  // For positions, the level to watch is the active exit: the trend line while above it, else the safety stop.
+  const holdingStop =
+    plan && holdingView
+      ? plan.trendLine !== null && plan.trendLine < price
+        ? plan.trendLine
+        : plan.hardStop !== null && plan.hardStop < price
+          ? plan.hardStop
+          : null
+      : null;
 
   return {
     symbol: row.symbol,
@@ -439,7 +514,8 @@ export function decide(input: EngineInput, regime: Regime, sizing: SizingInput):
     timingNote,
     entry: levels && (action === "BUY" || action === "ADD" || action === "WATCH") ? entry : null,
     target: levels && !NO_LEVELS.includes(action) ? levels.target : null,
-    stop: levels && !NO_LEVELS.includes(action) ? levels.stop : null,
+    stop: holdingView ? (action === "SELL" ? null : holdingStop) : levels && !NO_LEVELS.includes(action) ? levels.stop : null,
+    exitPlan: plan,
     riskReward: levels && !NO_LEVELS.includes(action) ? levels.riskReward : null,
     suggestedAmount: size ? size.amount : holdingView && sellPercent !== null ? (holdingView.marketValue * sellPercent) / 100 : null,
     suggestedAllocationPercent: size ? size.allocationPercent : null,

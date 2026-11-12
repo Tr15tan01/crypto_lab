@@ -16,6 +16,7 @@ import { listNotifications } from "@/services/alerts/alerts-service";
 import { latestRun } from "@/services/learning/learning-service";
 import { serialize } from "@/types/serialized";
 import { PageHeader } from "@/components/layout/page-header";
+import { AutoRefresh } from "@/components/layout/auto-refresh";
 import { Badge, EmptyState, Notice, Panel, PanelBody, PanelHeader } from "@/components/ui/primitives";
 import { ChangeText, Stat } from "@/components/market/indicators";
 import { MarketOverviewPanel } from "@/components/market/market-overview-panel";
@@ -67,6 +68,7 @@ export default async function DashboardPage() {
       <PageHeader
         title="Dashboard"
         description="Your research desk at a glance. All portfolio figures are simulated with theoretical funds."
+        actions={<AutoRefresh />}
       />
 
       {stateRes.error ? <Notice tone="down" className="mb-4" title="Portfolio unavailable">{stateRes.error}</Notice> : null}
@@ -125,7 +127,7 @@ export default async function DashboardPage() {
 
       <Panel className="mb-4">
         <PanelHeader
-          title="Learned model · most likely to beat BTC this week"
+          title="Learned model · most likely to outperform other coins this week"
           description={
             learned
               ? `Trained ${formatRelative(learned.createdAt)} on ${learned.data.samples.toLocaleString("en-US")} examples · out-of-sample AUC ${learned.test.metrics.auc.toFixed(3)} · typical ${(learned.test.metrics.baseRate * 100).toFixed(0)}%`
@@ -156,18 +158,20 @@ export default async function DashboardPage() {
         <Panel>
           <PanelHeader title="Open positions" actions={<Viewall href="/portfolio" />} />
           {v?.positions.length ? (
-            <table className="w-full text-[0.8125rem]">
-              <tbody>
-                {v.positions.map((p) => (
-                  <tr key={p.symbol} className="border-b border-border/70 last:border-0">
-                    <td className="px-4 py-2"><Link href={`/crypto/${p.symbol}`} className="font-medium hover:text-accent">{p.baseAsset}</Link></td>
-                    <td className="num px-3 py-2 text-right text-muted">{formatQuantity(p.quantity)}</td>
-                    <td className="num px-3 py-2 text-right">{formatUsd(p.marketValue)}</td>
-                    <td className="px-4 py-2 text-right"><ChangeText value={p.unrealizedPercent} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[0.8125rem]">
+                <tbody>
+                  {v.positions.map((p) => (
+                    <tr key={p.symbol} className="border-b border-border/70 last:border-0">
+                      <td className="px-4 py-2"><Link href={`/crypto/${p.symbol}`} className="font-medium hover:text-accent">{p.baseAsset}</Link></td>
+                      <td className="num px-3 py-2 text-right text-muted">{formatQuantity(p.quantity)}</td>
+                      <td className="num px-3 py-2 text-right">{formatUsd(p.marketValue)}</td>
+                      <td className="px-4 py-2 text-right"><ChangeText value={p.unrealizedPercent} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <EmptyState
               className="py-8"
@@ -179,21 +183,23 @@ export default async function DashboardPage() {
         <Panel>
           <PanelHeader title="Watchlist" actions={<Viewall href="/watchlist" />} />
           {watchRes.data?.rows.length ? (
-            <table className="w-full text-[0.8125rem]">
-              <tbody>
-                {watchRes.data.rows.slice(0, 8).map((w) => (
-                  <tr key={w.id} className="border-b border-border/70 last:border-0">
-                    <td className="px-4 py-2">
-                      <Link href={`/crypto/${w.symbol}`} className="font-medium hover:text-accent">{w.baseAsset}</Link>
-                      {w.tradable === false ? <Badge tone="down" className="ml-2">Not tradable</Badge> : null}
-                    </td>
-                    <td className="num px-3 py-2 text-right">{formatPrice(w.price)}</td>
-                    <td className="px-3 py-2 text-right"><ChangeText value={w.change24h} /></td>
-                    <td className="px-4 py-2 text-right text-xs text-muted">since added <ChangeText value={w.changeSinceAdded} showIcon={false} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[0.8125rem]">
+                <tbody>
+                  {watchRes.data.rows.slice(0, 8).map((w) => (
+                    <tr key={w.id} className="border-b border-border/70 last:border-0">
+                      <td className="px-4 py-2">
+                        <Link href={`/crypto/${w.symbol}`} className="font-medium hover:text-accent">{w.baseAsset}</Link>
+                        {w.tradable === false ? <Badge tone="down" className="ml-2">Not tradable</Badge> : null}
+                      </td>
+                      <td className="num px-3 py-2 text-right">{formatPrice(w.price)}</td>
+                      <td className="px-3 py-2 text-right"><ChangeText value={w.change24h} /></td>
+                      <td className="px-4 py-2 text-right text-xs text-muted">since added <ChangeText value={w.changeSinceAdded} showIcon={false} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <EmptyState className="py-8" title={watchRes.error ?? "Nothing on your watchlist yet"} />
           )}

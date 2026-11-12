@@ -32,7 +32,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar />
-        <main className="mx-auto w-full max-w-[1480px] flex-1 px-4 pb-16 pt-5 sm:px-6">
+        <main className="mx-auto w-full max-w-[1480px] flex-1 overflow-x-clip px-4 pb-16 pt-5 sm:px-6">
           <PageTransition>{children}</PageTransition>
         </main>
       </div>

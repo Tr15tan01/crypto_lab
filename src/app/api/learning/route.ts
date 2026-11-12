@@ -11,7 +11,7 @@ export const maxDuration = 60;
 export const GET = withApi(async ({ user }) => {
   const [run, runs, calibration, due] = await Promise.all([latestRun(), listRuns(30), selfCalibration(user.id), isDue()]);
   if (!run && !isTraining()) after(() => trainNow("auto", user.id).catch(() => null));
-  const latest = run ? (({ model, ...rest }) => ({ ...rest, featureCount: model.features.length }))(run) : null;
+  const latest = run ? (({ model, ...rest }) => ({ ...rest, model: { version: model.version }, featureCount: model.features.length }))(run) : null;
   return serialize({
     latest,
     runs,

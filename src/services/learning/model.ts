@@ -2,13 +2,16 @@ import { FEATURES, FEATURE_KEYS, type FeatureKey, type Sample } from "./features
 
 /**
  * The learning model: an L2-regularised logistic regression that estimates the probability a
- * pair beats BTC over the next 7 days. Deliberately simple and transparent: every weight can be
- * shown and explained, and it is validated walk-forward (trained on the past, tested on a later
- * period it never saw) so the reported skill is honest.
+ * pair does better than the typical (median) coin over the next 7 days. Deliberately simple and
+ * transparent: every weight can be shown and explained. It is validated walk-forward over
+ * several separate periods (always trained on the past, tested on a later period it never saw),
+ * because a single test window proved too noisy to trust.
  */
+export const MODEL_VERSION = 2;
 
 export interface TrainedModel {
-  version: 1;
+  /** 1 = predicted "beats BTC" (retired: unstable out of sample). 2 = "beats the median coin". */
+  version: number;
   features: FeatureKey[];
   /** Winsorising bounds (1st / 99th percentile) learned from the training data. */
   lo: number[];
@@ -22,7 +25,7 @@ export interface TrainedModel {
 
 export interface Metrics {
   samples: number;
-  /** Share of positives (pair beat BTC) — what "always say yes/no" would score against. */
+  /** Share of positives (did better than the median coin; 50% by construction). */
   baseRate: number;
   accuracy: number;
   /** Area under the ROC curve: 0.5 = no skill, 1 = perfect ranking. */
@@ -127,7 +130,7 @@ export function train(samples: Sample[], opts: { l2?: number; epochs?: number; l
       else b -= step;
     }
   }
-  return { version: 1, features: [...FEATURE_KEYS], lo, hi, mean, std, coef: w, intercept: b };
+  return { version: MODEL_VERSION, features: [...FEATURE_KEYS], lo, hi, mean, std, coef: w, intercept: b };
 }
 
 /** Rank-based AUC (Mann–Whitney), ties counted as half. */
@@ -149,7 +152,11 @@ export function auc(probs: number[], labels: number[]): number {
 }
 
 export function evaluate(model: TrainedModel, samples: Sample[]) {
-  const probs = samples.map((s) => predict(model, s.x));
+  return evaluatePredictions(samples, samples.map((s) => predict(model, s.x)));
+}
+
+/** Metrics, calibration and deciles for predictions that were made out of sample. */
+export function evaluatePredictions(samples: Sample[], probs: number[]) {
   const labels = samples.map((s) => s.y);
   const n = samples.length;
   const r4 = (v: number) => Math.round(v * 10_000) / 10_000;
@@ -209,27 +216,134 @@ export function walkForwardSplit(samples: Sample[], horizonDays = 7, trainShare 
   };
 }
 
+/** Spearman rank correlation. */
+export function rankCorrelation(a: number[], b: number[]): number {
+  const rank = (v: number[]) => {
+    const idx = v.map((_, i) => i).sort((x, y) => v[x]! - v[y]!);
+    const r = new Array<number>(v.length);
+    idx.forEach((id, k) => (r[id] = k));
+    return r;
+  };
+  const ra = rank(a);
+  const rb = rank(b);
+  const m = (a.length - 1) / 2;
+  let num = 0;
+  let da = 0;
+  let db = 0;
+  for (let i = 0; i < a.length; i++) {
+    num += (ra[i]! - m) * (rb[i]! - m);
+    da += (ra[i]! - m) ** 2;
+    db += (rb[i]! - m) ** 2;
+  }
+  return da > 0 && db > 0 ? num / Math.sqrt(da * db) : 0;
+}
+
+export interface FoldResult {
+  from: number;
+  to: number;
+  samples: number;
+  auc: number;
+  /** Mean daily rank correlation between the model's score and what happened (information coefficient). */
+  ic: number;
+}
+
+export interface Validation {
+  folds: FoldResult[];
+  positiveFolds: number;
+  ic: number;
+  /** t-statistic of the daily IC over all test days; above ~2 is unlikely to be luck. */
+  icT: number;
+  /** Average weekly result of the top fifth minus the bottom fifth, percent. */
+  topBottomPercent: number;
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Expanding walk-forward validation: the last 60% of the history is cut into `folds` periods;
+ * for each, a model is trained on everything before it (minus an embargo of `horizonDays`) and
+ * tested on that period. Returns every out-of-sample prediction and per-period results.
+ */
+export function crossValidate(samples: Sample[], opts: { folds?: number; horizonDays?: number; startShare?: number } = {}) {
+  const folds = opts.folds ?? 6;
+  const horizon = opts.horizonDays ?? 7;
+  const days = [...new Set(samples.map((s) => Math.floor(s.t / DAY_MS)))].sort((a, b) => a - b);
+  const start = Math.floor(days.length * (opts.startShare ?? 0.4));
+  const len = Math.floor((days.length - start) / folds);
+  if (len < 3) throw new Error("Not enough history for walk-forward validation.");
+
+  const oos: Sample[] = [];
+  const probs: number[] = [];
+  const foldResults: FoldResult[] = [];
+  const dailyIc: number[] = [];
+  const dailySpread: number[] = [];
+  for (let f = 0; f < folds; f++) {
+    const from = days[start + f * len]!;
+    const to = f === folds - 1 ? Infinity : days[start + (f + 1) * len]!;
+    const trainSet = samples.filter((s) => Math.floor(s.t / DAY_MS) < from - horizon);
+    const testSet = samples.filter((s) => Math.floor(s.t / DAY_MS) >= from && Math.floor(s.t / DAY_MS) < to);
+    if (trainSet.length < 200 || !testSet.length) continue;
+    const model = train(trainSet);
+    const p = testSet.map((s) => predict(model, s.x));
+    const byDay = new Map<number, number[]>();
+    testSet.forEach((s, i) => {
+      const d = Math.floor(s.t / DAY_MS);
+      const l = byDay.get(d);
+      if (l) l.push(i);
+      else byDay.set(d, [i]);
+    });
+    const ics: number[] = [];
+    for (const idx of byDay.values()) {
+      if (idx.length < 15) continue;
+      const ic = rankCorrelation(idx.map((i) => p[i]!), idx.map((i) => testSet[i]!.excess));
+      ics.push(ic);
+      const sorted = [...idx].sort((a, b) => p[a]! - p[b]!);
+      const q = Math.max(1, Math.floor(sorted.length / 5));
+      const mean = (l: number[]) => l.reduce((a, i) => a + testSet[i]!.excess, 0) / l.length;
+      dailySpread.push(mean(sorted.slice(-q)) - mean(sorted.slice(0, q)));
+    }
+    dailyIc.push(...ics);
+    foldResults.push({
+      from: from * DAY_MS,
+      to: (to === Infinity ? days[days.length - 1]! + 1 : to) * DAY_MS,
+      samples: testSet.length,
+      auc: Math.round(auc(p, testSet.map((s) => s.y)) * 10_000) / 10_000,
+      ic: ics.length ? Math.round((ics.reduce((a, b) => a + b, 0) / ics.length) * 10_000) / 10_000 : 0,
+    });
+    oos.push(...testSet);
+    probs.push(...p);
+  }
+  const mean = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
+  const sd = (a: number[]) => (a.length > 1 ? Math.sqrt(a.reduce((x, y) => x + (y - mean(a)) ** 2, 0) / (a.length - 1)) : 0);
+  const validation: Validation = {
+    folds: foldResults,
+    positiveFolds: foldResults.filter((f) => f.ic > 0 && f.auc > 0.5).length,
+    ic: Math.round(mean(dailyIc) * 10_000) / 10_000,
+    icT: sd(dailyIc) > 0 ? Math.round((mean(dailyIc) / (sd(dailyIc) / Math.sqrt(dailyIc.length))) * 100) / 100 : 0,
+    topBottomPercent: Math.round(mean(dailySpread) * 100) / 100,
+  };
+  return { samples: oos, probs, validation };
+}
+
 /* ───────────── Explaining what was learned ───────────── */
 
 const LESSONS: Record<FeatureKey, { up: string; down: string }> = {
-  ret7: { up: "Coins that rose over the last week tended to keep beating BTC (short-term momentum).", down: "Coins that rose over the last week tended to give it back next week (short-term reversal)." },
+  ret7: { up: "Coins that rose over the last week tended to keep outperforming (short-term momentum).", down: "Coins that rose over the last week tended to give it back next week (short-term reversal)." },
   ret30: { up: "A strong past month predicted more outperformance (medium-term momentum).", down: "A strong past month predicted underperformance next week (stretched coins cool off)." },
   ret90: { up: "Coins up over 90 days kept outperforming (long trends persist).", down: "Coins up a lot over 90 days tended to lag (late-trend exhaustion)." },
-  rel7: { up: "Beating BTC over the last week carried over into the next week.", down: "Beating BTC over the last week tended to reverse." },
-  rel30: { up: "Beating BTC over 30 days predicted further outperformance (relative-strength momentum).", down: "Beating BTC over 30 days tended to reverse (mean reversion)." },
+  rel7: { up: "Coins that beat BTC over the last week kept leading the following week.", down: "Coins that beat BTC over the last week tended to fall back." },
+  rel30: { up: "Coins that beat BTC over 30 days kept outperforming (relative-strength momentum).", down: "Coins that beat BTC over 30 days tended to fall back (mean reversion)." },
   vsSma50: { up: "Trading above the 50-day average was a good sign.", down: "Being far above the 50-day average was a warning (overextension)." },
   vsSma200: { up: "Trading above the 200-day average helped (long-term uptrend).", down: "Being far above the 200-day average hurt (overextended vs long-term trend)." },
   goldenTrend: { up: "Coins with the 50-day above the 200-day average did better.", down: "A 50-day above 200-day structure did not help, once other factors were known." },
   rsi14: { up: "Higher RSI (stronger momentum) predicted outperformance.", down: "High RSI (overbought) predicted underperformance; low RSI helped." },
   macdHist: { up: "Positive MACD momentum predicted outperformance.", down: "Strong MACD readings tended to fade." },
-  atrPct: { up: "More volatile coins tended to beat BTC (risk paid off).", down: "More volatile coins tended to lag BTC (volatility drag)." },
+  atrPct: { up: "More volatile coins tended to outperform (risk paid off).", down: "More volatile coins tended to lag steadier ones (volatility drag)." },
   squeeze: { up: "Wide Bollinger Bands (already volatile) were followed by outperformance.", down: "Narrow Bollinger Bands (squeezes) were followed by outperformance." },
   volumeRatio: { up: "Unusually high volume predicted outperformance (fresh interest).", down: "Volume spikes were followed by underperformance (blow-off moves)." },
   volumeFlow: { up: "Buying volume outweighing selling volume predicted outperformance.", down: "Heavy recent buying volume tended to be followed by weakness." },
   rangePos90: { up: "Coins near the top of their 90-day range did better (strength begets strength).", down: "Coins near the bottom of their 90-day range did better (bounce potential)." },
   drawdown180: { up: "Coins near their 180-day high did better than deeply beaten-down ones.", down: "Deeply beaten-down coins bounced harder than those near their highs." },
-  btcRet30: { up: "Altcoins beat BTC more often after BTC itself had rallied (risk-on spill-over).", down: "Altcoins lagged BTC after BTC had rallied (BTC dominance phases)." },
-  btcTrend: { up: "Altcoins beat BTC more often when BTC was above its 50-day average.", down: "Altcoins beat BTC more often when BTC was below its 50-day average." },
 };
 
 export interface Lesson {
@@ -290,10 +404,11 @@ export function compareModels(prev: TrainedModel | null, next: TrainedModel): Ch
 }
 
 /**
- * How much Autopilot should trust the model, from its out-of-sample AUC: nothing at or below
- * 0.51 (no real skill), rising to the cap at 0.60.
+ * How much Autopilot should trust the model. From its out-of-sample AUC: nothing at or below
+ * 0.51 (no real skill), rising to the cap at 0.60; then scaled down by the share of validation
+ * periods in which it failed, so a model that only worked some of the time counts for less.
  */
-export function modelTrust(testAuc: number | null | undefined): number {
+export function modelTrust(testAuc: number | null | undefined, positiveFoldShare = 1): number {
   if (!testAuc || testAuc <= 0.51) return 0;
-  return Math.min(1, (testAuc - 0.51) / 0.09);
+  return Math.min(1, (testAuc - 0.51) / 0.09) * Math.max(0, Math.min(1, positiveFoldShare));
 }

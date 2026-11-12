@@ -8,13 +8,27 @@ import type { Kline } from "@/services/binance/schemas";
 import { loadUniverseHistories } from "@/services/backtest/backtest-service";
 import type { LearningRunDoc, PredictionDoc } from "@/models";
 import type { AccuracyItem } from "@/services/predictions/accuracy";
-import { FEATURES, btcContext, latestFeatures, samplesFor, type Sample } from "./features";
-import { compareModels, contributions, evaluate, lessons, modelTrust, predict, train, walkForwardSplit, type TrainedModel } from "./model";
+import { isTrackerOrPegged } from "@/services/market/asset-names";
+import { FEATURES, btcContext, labelAgainstMedian, latestFeatures, samplesFor, type BtcContext, type Sample } from "./features";
+import {
+  MODEL_VERSION,
+  compareModels,
+  contributions,
+  crossValidate,
+  evaluate,
+  evaluatePredictions,
+  lessons,
+  modelTrust,
+  predict,
+  train,
+  type TrainedModel,
+} from "./model";
 
 /**
  * The app's self-learning loop:
- *   1. replay ~2.5 years of daily data for the most liquid pairs and build labelled samples,
- *   2. train on the older 75%, test on the newer 25% (walk-forward, with an embargo),
+ *   1. replay ~2.5 years of daily data for the most liquid coins and build labelled samples
+ *      ("did this coin do better than the typical coin over the next 7 days?"),
+ *   2. validate walk-forward over six separate periods (train on the past, test on the next),
  *   3. retrain on everything for live use, explain the weights, diff them against the last run,
  *   4. store the run, and score assets with it (Autopilot, coin pages, chat).
  * Retrains at most once a day (scheduled job, or on demand from the Learning page).
@@ -35,15 +49,46 @@ export async function latestRun(): Promise<LearningRunDoc | null> {
   const cached = g.__cryptoLabLearning;
   if (cached && Date.now() - cached.loadedAt < 10 * 60_000) return cached.run;
   const { learningRuns } = await getCollections();
-  const run = await learningRuns.find({}).sort({ createdAt: -1 }).limit(1).next();
+  // Only runs of the current model design can score assets; older designs stay in the history.
+  const run = await learningRuns.find({ "model.version": MODEL_VERSION }).sort({ createdAt: -1 }).limit(1).next();
   g.__cryptoLabLearning = { run, loadedAt: Date.now() };
   return run;
+}
+
+/**
+ * Labelled samples for training. Gold, wrapped and pegged tokens are left out: they are easy to
+ * "predict" and would flatter the validation without helping to pick coins.
+ */
+export function buildTrainingSet(
+  pairs: Array<{ symbol: string; candles: Kline[] }>,
+  btc: Kline[] | null,
+): { samples: Sample[]; universe: Array<{ symbol: string; candles: Kline[] }>; excluded: string[]; ctx: BtcContext } | null {
+  const ctx = btcContext(btc);
+  if (!ctx) return null;
+  const alts = pairs.filter((p) => p.symbol !== "BTCUSDT");
+  const universe = alts.filter((p) => !isTrackerOrPegged(p.symbol.replace(/USDT$/, ""), p.candles.map((k) => k.close)));
+  const raw = universe.flatMap((p) => samplesFor(p.symbol, p.candles, ctx, HORIZON, STRIDE));
+  return {
+    samples: labelAgainstMedian(raw),
+    universe,
+    excluded: alts.filter((p) => !universe.includes(p)).map((p) => p.symbol),
+    ctx,
+  };
 }
 
 export async function listRuns(limit = 30) {
   const { learningRuns } = await getCollections();
   return learningRuns
-    .find({}, { projection: { model: 0, "test.calibration": 0, "test.deciles": 0, "picks.bottom": 0 } })
+    // Keeps model.version (to tell model designs apart) but not the weights.
+    .find(
+      {},
+      {
+        projection: {
+          "model.features": 0, "model.lo": 0, "model.hi": 0, "model.mean": 0, "model.std": 0, "model.coef": 0, "model.intercept": 0,
+          "test.calibration": 0, "test.deciles": 0, "picks.bottom": 0, pickEvaluations: 0,
+        },
+      },
+    )
     .sort({ createdAt: -1 })
     .limit(Math.min(limit, 100))
     .toArray();
@@ -67,21 +112,19 @@ function pick(model: TrainedModel, symbol: string, x: number[]) {
 async function runTraining(trigger: LearningRunDoc["trigger"], userId: string | null): Promise<LearningRunDoc> {
   const started = Date.now();
   const { pairs, btc } = await loadUniverseHistories();
-  const ctx = btcContext(btc);
-  if (!ctx) throw new AppError("MARKET_UNAVAILABLE", "BTC history is unavailable, so the model cannot be trained right now.", { retryable: true });
-
-  const alts = pairs.filter((p) => p.symbol !== "BTCUSDT");
-  const samples: Sample[] = alts.flatMap((p) => samplesFor(p.symbol, p.candles, ctx, HORIZON, STRIDE));
+  const set = buildTrainingSet(pairs, btc);
+  if (!set) throw new AppError("MARKET_UNAVAILABLE", "BTC history is unavailable, so the model cannot be trained right now.", { retryable: true });
+  const { samples, universe: alts, ctx } = set;
   if (samples.length < 1000) {
     throw new AppError("MARKET_UNAVAILABLE", `Only ${samples.length} training samples could be built; need at least 1000.`, { retryable: true });
   }
 
-  const split = walkForwardSplit(samples, HORIZON);
-  const validationModel = train(split.train);
-  const test = evaluate(validationModel, split.test);
-  const inSample = evaluate(validationModel, split.train);
+  // Honest skill: every prediction below was made by a model that had only seen earlier data.
+  const cv = crossValidate(samples, { horizonDays: HORIZON });
+  const test = evaluatePredictions(cv.samples, cv.probs);
   // The live model learns from all history, including the most recent period.
   const model = train(samples);
+  const inSample = evaluate(model, samples);
 
   const prev = await latestRun();
   const picks = alts
@@ -106,10 +149,12 @@ async function runTraining(trigger: LearningRunDoc["trigger"], userId: string | 
       horizonDays: HORIZON,
       strideDays: STRIDE,
     },
-    split: { cutoff: new Date(split.cutoff), trainSamples: split.train.length, testSamples: split.test.length },
+    split: { cutoff: new Date(cv.validation.folds[0]?.from ?? Date.now()), trainSamples: samples.length, testSamples: cv.samples.length },
     test,
+    validation: cv.validation,
     train: { metrics: inSample.metrics },
-    trust: Math.round(modelTrust(test.metrics.auc) * 100) / 100,
+    trust:
+      Math.round(modelTrust(test.metrics.auc, cv.validation.folds.length ? cv.validation.positiveFolds / cv.validation.folds.length : 0) * 100) / 100,
     model,
     lessons: lessons(model),
     changes: compareModels(prev?.model ?? null, model),
@@ -130,7 +175,7 @@ async function runTraining(trigger: LearningRunDoc["trigger"], userId: string | 
         alertId: null,
         symbol: doc.picks.top[0]?.symbol ?? "BTCUSDT",
         title: `Model retrained · out-of-sample AUC ${doc.test.metrics.auc.toFixed(3)}`,
-        body: `${doc.changes.length ? `${doc.changes.length} view change${doc.changes.length > 1 ? "s" : ""}. ` : ""}Top picks to beat BTC this week: ${top || "none"}. See Learning.`,
+        body: `${doc.changes.length ? `${doc.changes.length} view change${doc.changes.length > 1 ? "s" : ""}. ` : ""}Most likely to outperform this week: ${top || "none"}. See Learning.`,
         createdAt: new Date(),
         readAt: null,
         channels: ["in_app"],
@@ -226,7 +271,7 @@ export async function evaluateRunPicks(maxRunHorizons = 2): Promise<number> {
   const { learningRuns } = await getCollections();
   const now = Date.now();
   const runs = await learningRuns
-    .find({ createdAt: { $lte: new Date(now - PICK_HORIZONS["24h"].ms) } }, { projection: { createdAt: 1, picks: 1, pickEvaluations: 1 } })
+    .find({ createdAt: { $lte: new Date(now - PICK_HORIZONS["24h"].ms) } }, { projection: { createdAt: 1, picks: 1, pickEvaluations: 1, "model.version": 1 } })
     .sort({ createdAt: -1 })
     .limit(120)
     .toArray();
@@ -239,15 +284,27 @@ export async function evaluateRunPicks(maxRunHorizons = 2): Promise<number> {
       try {
         const btc = await windowReturn("BTCUSDT", h, start);
         if (btc === null) continue;
-        const results: NonNullable<LearningRunDoc["pickEvaluations"]>[number]["results"] = [];
+        const returns: Array<{ symbol: string; side: "top" | "bottom"; r: number }> = [];
         for (const [side, list] of [["top", run.picks.top], ["bottom", run.picks.bottom]] as const) {
           for (const p of list) {
             const r = await windowReturn(p.symbol, h, start).catch(() => null);
-            if (r === null) continue;
-            const excess = Math.round((r - btc) * 100) / 100;
-            results.push({ symbol: p.symbol, side, excessPercent: excess, correct: side === "top" ? excess > 0 : excess < 0 });
+            if (r !== null) returns.push({ symbol: p.symbol, side, r });
           }
         }
+        const avg = (side: "top" | "bottom") => {
+          const l = returns.filter((x) => x.side === side);
+          return l.length ? l.reduce((a, x) => a + x.r, 0) / l.length : null;
+        };
+        const avgTop = avg("top");
+        const avgBottom = avg("bottom");
+        const relative = run.model?.version === MODEL_VERSION && avgTop !== null && avgBottom !== null;
+        // Current model: a top pick is right if it did better than the bottom picks' average (and
+        // the reverse). Runs of the retired design keep their original yardstick, BTC.
+        const results: NonNullable<LearningRunDoc["pickEvaluations"]>[number]["results"] = returns.map((x) => {
+          const benchmark = relative ? (x.side === "top" ? avgBottom! : avgTop!) : btc;
+          const excess = Math.round((x.r - benchmark) * 100) / 100;
+          return { symbol: x.symbol, side: x.side, excessPercent: excess, correct: x.side === "top" ? excess > 0 : excess < 0 };
+        });
         if (!results.length) continue;
         await learningRuns.updateOne(
           { _id: run._id, "pickEvaluations.horizon": { $ne: h } },

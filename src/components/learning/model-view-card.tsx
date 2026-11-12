@@ -24,7 +24,7 @@ export function ModelProbability({ view, compact = false }: { view: ModelView; c
     <Tooltip
       content={
         <span>
-          The app&apos;s learned model: {pct}% chance to beat BTC over 7 days ({up ? "+" : ""}
+          The app&apos;s learned model: {pct}% chance to do better than the typical coin over 7 days ({up ? "+" : ""}
           {view.edgePoints.toFixed(1)} points vs typical). Out-of-sample AUC {view.testAuc.toFixed(3)}, trust {(view.trust * 100).toFixed(0)}%.
         </span>
       }
@@ -32,7 +32,7 @@ export function ModelProbability({ view, compact = false }: { view: ModelView; c
       <span className={cn("inline-flex cursor-help items-center gap-1 font-mono", compact ? "text-[0.6875rem]" : "text-xs")}>
         <GraduationCap className="size-3.5 text-muted" />
         <span className={up ? "text-up" : "text-down"}>{pct}%</span>
-        {!compact ? <span className="text-muted">beat BTC 7d</span> : null}
+        {!compact ? <span className="text-muted">outperform 7d</span> : null}
       </span>
     </Tooltip>
   );
@@ -47,7 +47,7 @@ export function ModelViewCard({ symbol }: { symbol: string }) {
     <Panel>
       <PanelHeader
         title={<span className="flex items-center gap-1.5"><GraduationCap className="size-3.5 text-muted" /> Learned model</span>}
-        description="Chance this pair beats BTC over the next 7 days, from the app's own model."
+        description="Chance this coin does better than the typical coin over the next 7 days, from the app's own model."
         actions={<Link href="/learning" className="text-[0.6875rem] text-muted hover:text-fg">How it learns</Link>}
       />
       <PanelBody>
@@ -55,7 +55,7 @@ export function ModelViewCard({ symbol }: { symbol: string }) {
           <Skeleton className="h-16 w-full" />
         ) : !v ? (
           <p className="text-xs text-muted">
-            {symbol === "BTCUSDT" ? "The model compares coins with BTC, so it does not score BTC itself." : "No trained model yet, or not enough history for this pair. "}
+            {symbol === "BTCUSDT" ? "BTC is the yardstick the other coins are measured against, so the model does not score it." : "No trained model yet, or not enough history for this pair. "}
             {symbol !== "BTCUSDT" ? <Link href="/learning" className="underline">Open Learning</Link> : null}
           </p>
         ) : (

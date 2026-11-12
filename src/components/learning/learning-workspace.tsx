@@ -45,6 +45,14 @@ interface Run {
     spreadPercent: number;
   };
   train: { metrics: Metrics };
+  model?: { version?: number };
+  validation?: {
+    folds: Array<{ from: number; to: number; samples: number; auc: number; ic: number }>;
+    positiveFolds: number;
+    ic: number;
+    icT: number;
+    topBottomPercent: number;
+  };
   trust: number;
   lessons: Lesson[];
   changes: Change[];
@@ -90,7 +98,7 @@ function RoundedEndBar(props: unknown) {
 
 function DecileChart({ deciles }: { deciles: NonNullable<Run["test"]["deciles"]> }) {
   return (
-    <div role="img" aria-label="Average result vs BTC by model decile, out of sample">
+    <div role="img" aria-label="Average result vs the typical coin by model decile, out of sample">
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={deciles} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} barCategoryGap={4}>
           <CartesianGrid stroke={CHART.grid} vertical={false} />
@@ -106,8 +114,8 @@ function DecileChart({ deciles }: { deciles: NonNullable<Run["test"]["deciles"]>
               return (
                 <Tip>
                   <p className="text-muted">Decile {d.decile} · {d.count} coin-weeks</p>
-                  <p className="num mt-1 text-sm">{d.avgExcessPercent >= 0 ? "▲" : "▼"} {formatPercent(d.avgExcessPercent)} vs BTC</p>
-                  <p className="num text-muted">model said {(d.avgProbability * 100).toFixed(0)}% · actually beat BTC {(d.hitRate * 100).toFixed(0)}%</p>
+                  <p className="num mt-1 text-sm">{d.avgExcessPercent >= 0 ? "▲" : "▼"} {formatPercent(d.avgExcessPercent)} vs the typical coin</p>
+                  <p className="num text-muted">model said {(d.avgProbability * 100).toFixed(0)}% · actually outperformed {(d.hitRate * 100).toFixed(0)}%</p>
                 </Tip>
               );
             }}
@@ -275,9 +283,23 @@ export function LearningWorkspace() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-border bg-surface px-4 py-2.5 text-xs">
-        <span className="flex items-center gap-1.5"><History className="size-3.5 text-muted" /> Last trained <strong className="font-medium">{formatRelative(run.createdAt)}</strong> <span className="text-faint">({formatDateTime(run.createdAt)}, by {TRIGGER[run.trigger]}, {(run.durationMs / 1000).toFixed(0)}s)</span></span>
-        {data.nextRunAt ? <span className="flex items-center gap-1.5 text-muted"><CalendarClock className="size-3.5" /> Next scheduled run {formatDateTime(data.nextRunAt)}</span> : null}
-        <span className="text-muted">{run.data.pairs} pairs · {run.data.samples.toLocaleString("en-US")} examples · {run.data.from ? formatDate(run.data.from) : "—"} → {run.data.to ? formatDate(run.data.to) : "—"}</span>
+        <span className="inline-flex items-start gap-1.5">
+          <History className="mt-0.5 size-3.5 shrink-0 text-muted" />
+          <span>
+            Last trained <strong className="font-medium">{formatRelative(run.createdAt)}</strong>{" "}
+            <span className="text-faint">({formatDateTime(run.createdAt)}, by {TRIGGER[run.trigger]}, {(run.durationMs / 1000).toFixed(0)}s)</span>
+          </span>
+        </span>
+        {data.nextRunAt ? (
+          <span className="inline-flex items-start gap-1.5 text-muted">
+            <CalendarClock className="mt-0.5 size-3.5 shrink-0" />
+            <span>Next scheduled run {formatDateTime(data.nextRunAt)}</span>
+          </span>
+        ) : null}
+        <span className="text-muted">
+          {run.data.pairs} pairs · {run.data.samples.toLocaleString("en-US")} examples · {run.data.from ? formatDate(run.data.from) : "—"} →{" "}
+          {run.data.to ? formatDate(run.data.to) : "—"}
+        </span>
         <Button size="sm" variant="secondary" className="ml-auto" loading={training} onClick={() => void retrain()}>
           <RefreshCw className="size-3.5" /> Retrain now
         </Button>
@@ -290,7 +312,11 @@ export function LearningWorkspace() {
         <Panel>
           <PanelHeader
             title={<span className="flex items-center gap-2">Did it learn anything? <Badge tone={verdict.tone}><VIcon className="size-3" /> {verdict.label}</Badge></span>}
-            description={`Trained on data up to ${formatDate(run.split.cutoff)}, then tested on the ${run.split.testSamples.toLocaleString("en-US")} examples after it, which it never saw.`}
+            description={
+              run.validation
+                ? `Tested ${run.validation.folds.length} times since ${formatDate(run.split.cutoff)}: each time it learned only from earlier data and was graded on the next period (${run.split.testSamples.toLocaleString("en-US")} graded examples).`
+                : `Trained on data up to ${formatDate(run.split.cutoff)}, then tested on the ${run.split.testSamples.toLocaleString("en-US")} examples after it, which it never saw.`
+            }
           />
           <PanelBody className="space-y-3">
             <p className="text-xs text-fg/85">{verdict.text}</p>
@@ -302,9 +328,32 @@ export function LearningWorkspace() {
                 tone={m.auc >= 0.52 ? "up" : "down"}
               />
               <Stat label="Accuracy" value={formatPercent(m.accuracy * 100, { sign: false, digits: 1 })} sub={`always-“no” would get ${formatPercent((1 - m.baseRate) * 100, { sign: false, digits: 1 })}`} />
-              <Stat label="Top vs bottom 10%" value={formatPercent(run.test.spreadPercent, { digits: 1 })} sub="weekly result vs BTC" tone={run.test.spreadPercent > 0 ? "up" : "down"} />
+              <Stat label="Top vs bottom 10%" value={formatPercent(run.test.spreadPercent, { digits: 1 })} sub="weekly result vs the typical coin" tone={run.test.spreadPercent > 0 ? "up" : "down"} />
               <Stat label="Trust in Autopilot" value={`${Math.round(run.trust * 100)}%`} sub="from the AUC; 0% below 0.51" />
             </div>
+            {run.validation ? (
+              <div>
+                <p className="mb-1 text-[0.6875rem] text-muted">
+                  Better than chance in <strong className="font-medium text-fg">{run.validation.positiveFolds} of {run.validation.folds.length}</strong> test
+                  periods · ranking skill (IC) {run.validation.ic.toFixed(3)}, t = {run.validation.icT.toFixed(1)} · top fifth beat bottom fifth by{" "}
+                  {formatPercent(run.validation.topBottomPercent, { digits: 2 })} a week
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {run.validation.folds.map((f) => (
+                    <span
+                      key={f.from}
+                      title={`${formatDate(f.from)} → ${formatDate(f.to)} · ${f.samples} examples · IC ${f.ic.toFixed(3)}`}
+                      className={cn(
+                        "num rounded-sm border px-1.5 py-0.5 text-[0.6875rem]",
+                        f.auc > 0.5 && f.ic > 0 ? "border-up/30 text-up" : "border-down/30 text-down",
+                      )}
+                    >
+                      {formatDate(f.from).replace(/, \d{4}$/, "")} · {f.auc.toFixed(3)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <p className="text-[0.6875rem] text-faint">
               In-sample AUC {run.train.metrics.auc.toFixed(3)} vs out-of-sample {m.auc.toFixed(3)}: a small gap means it is not just memorising the past.
               Brier score {m.brier.toFixed(4)} (lower is better).
@@ -313,7 +362,7 @@ export function LearningWorkspace() {
         </Panel>
 
         <Panel>
-          <PanelHeader title="Does a higher score mean a better coin?" description="Unseen period, coins sorted into 10 groups by the model's probability. Bars: average 7-day result vs BTC." />
+          <PanelHeader title="Does a higher score mean a better coin?" description="Unseen period, coins sorted into 10 groups by the model's probability. Bars: average 7-day result vs the typical coin." />
           <PanelBody className="px-2">{run.test.deciles?.length ? <DecileChart deciles={run.test.deciles} /> : null}</PanelBody>
         </Panel>
       </div>
@@ -323,15 +372,15 @@ export function LearningWorkspace() {
           <PanelHeader title={<span className="flex items-center gap-1.5"><GraduationCap className="size-3.5 text-muted" /> What it has learned</span>} description="Each factor's weight in the model, strongest first. Green helps a coin beat BTC, red hurts — all other factors held equal." />
           <ul className="divide-y divide-border">
             {run.lessons.map((l) => (
-              <li key={l.key} className="flex items-start gap-3 px-4 py-2">
+              <li key={l.key} className="flex flex-wrap items-start gap-x-3 gap-y-1 px-4 py-2 sm:flex-nowrap">
                 <WeightBar weight={l.weight} max={maxW} />
-                <div className="min-w-0 flex-1">
+                <div className="order-last min-w-0 basis-full sm:order-none sm:flex-1 sm:basis-0">
                   <p className="text-xs">
                     <span className="font-medium">{l.label}</span> <span className="text-faint">· {l.group} · {l.importance}% of the model</span>
                   </p>
                   <p className="text-[0.6875rem] text-muted">{l.text}</p>
                 </div>
-                <span className={cn("num w-12 shrink-0 text-right text-xs", l.weight >= 0 ? "text-up" : "text-down")}>{l.weight > 0 ? "+" : ""}{l.weight.toFixed(2)}</span>
+                <span className={cn("num ml-auto w-12 shrink-0 text-right text-xs sm:ml-0", l.weight >= 0 ? "text-up" : "text-down")}>{l.weight > 0 ? "+" : ""}{l.weight.toFixed(2)}</span>
               </li>
             ))}
           </ul>
@@ -365,10 +414,10 @@ export function LearningWorkspace() {
       <Panel>
         <PanelHeader
           title={<span className="flex items-center gap-1.5"><Sparkles className="size-3.5 text-muted" /> What it thinks now</span>}
-          description={`Chance to beat BTC over the next 7 days, from the latest closed daily candle (${formatRelative(run.createdAt)}). Typical: ${(m.baseRate * 100).toFixed(0)}%. Reasons are the strongest factors for each coin.`}
+          description={`Chance to do better than the typical coin over the next 7 days, from the latest closed daily candle (${formatRelative(run.createdAt)}). Typical: ${(m.baseRate * 100).toFixed(0)}%. Reasons are the strongest factors for each coin.`}
         />
         <PanelBody className="grid gap-6 lg:grid-cols-2">
-          <Picks title="Most likely to beat BTC" rows={run.picks.top} tone="up" />
+          <Picks title="Most likely to outperform" rows={run.picks.top} tone="up" />
           {run.picks.bottom?.length ? <Picks title="Least likely" rows={run.picks.bottom} tone="down" /> : null}
         </PanelBody>
       </Panel>
@@ -377,35 +426,37 @@ export function LearningWorkspace() {
         <Panel>
           <PanelHeader title="Learning from its own calls" description="Stated confidence of scored chat and Autopilot calls vs how often they were right. Autopilot pulls its confidence toward these results once a bucket has 10+ scored calls." />
           {calib.length ? (
-            <table className="w-full text-[0.8125rem]">
-              <thead className="border-b border-border bg-surface-2/50">
-                <tr className="text-[0.6875rem] text-muted">
-                  <th className="px-3 py-2 text-left font-medium">Source</th>
-                  <th className="px-3 py-2 text-left font-medium">Said</th>
-                  <th className="px-3 py-2 text-right font-medium">Scored calls</th>
-                  <th className="px-3 py-2 text-right font-medium">Avg stated</th>
-                  <th className="px-3 py-2 text-right font-medium">Actually right</th>
-                  <th className="px-3 py-2 text-left font-medium">Verdict</th>
-                </tr>
-              </thead>
-              <tbody>
-                {calib.map((c) => {
-                  const gap = c.hitRate !== null && c.statedAvg !== null ? c.hitRate - c.statedAvg : null;
-                  return (
-                    <tr key={`${c.source}${c.bucket}`} className="border-b border-border last:border-0">
-                      <td className="px-3 py-2 capitalize">{c.source}</td>
-                      <td className="px-3 py-2">{c.bucket}</td>
-                      <td className="num px-3 py-2 text-right">{c.decided}</td>
-                      <td className="num px-3 py-2 text-right">{c.statedAvg ?? "—"}%</td>
-                      <td className="num px-3 py-2 text-right">{c.hitRate !== null ? `${c.hitRate.toFixed(0)}%` : "—"}</td>
-                      <td className="px-3 py-2 text-xs">
-                        {c.decided < 10 ? <span className="text-faint">needs {10 - c.decided} more</span> : gap !== null && gap < -10 ? <span className="text-down">overconfident</span> : gap !== null && gap > 10 ? <span className="text-info">underconfident</span> : <span className="text-up">calibrated</span>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[0.8125rem]">
+                <thead className="border-b border-border bg-surface-2/50">
+                  <tr className="text-[0.6875rem] text-muted">
+                    <th className="px-3 py-2 text-left font-medium">Source</th>
+                    <th className="px-3 py-2 text-left font-medium">Said</th>
+                    <th className="px-3 py-2 text-right font-medium">Scored calls</th>
+                    <th className="px-3 py-2 text-right font-medium">Avg stated</th>
+                    <th className="px-3 py-2 text-right font-medium">Actually right</th>
+                    <th className="px-3 py-2 text-left font-medium">Verdict</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {calib.map((c) => {
+                    const gap = c.hitRate !== null && c.statedAvg !== null ? c.hitRate - c.statedAvg : null;
+                    return (
+                      <tr key={`${c.source}${c.bucket}`} className="border-b border-border last:border-0">
+                        <td className="px-3 py-2 capitalize">{c.source}</td>
+                        <td className="px-3 py-2">{c.bucket}</td>
+                        <td className="num px-3 py-2 text-right">{c.decided}</td>
+                        <td className="num px-3 py-2 text-right">{c.statedAvg ?? "—"}%</td>
+                        <td className="num px-3 py-2 text-right">{c.hitRate !== null ? `${c.hitRate.toFixed(0)}%` : "—"}</td>
+                        <td className="px-3 py-2 text-xs">
+                          {c.decided < 10 ? <span className="text-faint">needs {10 - c.decided} more</span> : gap !== null && gap < -10 ? <span className="text-down">overconfident</span> : gap !== null && gap > 10 ? <span className="text-info">underconfident</span> : <span className="text-up">calibrated</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <PanelBody><p className="text-xs text-muted">No scored calls yet. Chat verdicts and Autopilot calls are scored after their horizon; results appear here.</p></PanelBody>
           )}
@@ -413,12 +464,12 @@ export function LearningWorkspace() {
 
         <Panel>
           <PanelHeader title="Skill over time" description="Out-of-sample AUC of every training run. Steady above the dashed line = the lessons keep holding." />
-          <PanelBody className="px-2"><AucHistory runs={data.runs} /></PanelBody>
+          <PanelBody className="px-2"><AucHistory runs={data.runs.filter((r) => r.model?.version === run.model?.version)} /></PanelBody>
         </Panel>
       </div>
 
       <Panel>
-        <PanelHeader title="Training history" description="Every run is kept." />
+        <PanelHeader title="Training history" description="Every run is kept. Runs marked “earlier design” predicted “beats BTC” and were tested on a single period, so their scores are not comparable." />
         <div className="overflow-x-auto">
           <table className="w-full text-[0.8125rem]">
             <thead className="border-b border-border bg-surface-2/50">
@@ -437,7 +488,10 @@ export function LearningWorkspace() {
               {data.runs.map((r) => (
                 <tr key={r._id} className="border-b border-border last:border-0">
                   <td className="px-3 py-2 text-xs text-muted">{formatDateTime(r.createdAt)}</td>
-                  <td className="px-3 py-2 text-xs">{TRIGGER[r.trigger]}</td>
+                  <td className="px-3 py-2 text-xs">
+                    {TRIGGER[r.trigger]}
+                    {r.model?.version !== run.model?.version ? <span className="ml-1 text-faint">· earlier design</span> : null}
+                  </td>
                   <td className="num px-3 py-2 text-right">{r.data.samples.toLocaleString("en-US")}</td>
                   <td className={cn("num px-3 py-2 text-right", r.test.metrics.auc >= 0.52 ? "text-up" : "text-down")}>{r.test.metrics.auc.toFixed(3)}</td>
                   <td className="num px-3 py-2 text-right">{formatPercent(r.test.spreadPercent, { digits: 1 })}</td>
@@ -459,14 +513,16 @@ export function LearningWorkspace() {
             <p>
               Every 3rd day of the last ~2.5 years, for the 100 most liquid Binance pairs, it records {data.features.length} facts known at that
               day&apos;s close ({[...new Set(data.features.map((f) => f.group))].join(", ").toLowerCase()}) and what happened next: did the coin
-              beat BTC over the following {run.data.horizonDays} days?
+              do better than the typical (median) coin over the following {run.data.horizonDays} days? Gold, wrapped and pegged tokens are
+              left out.
             </p>
           </div>
           <div>
             <p className="mb-1 font-medium text-fg">2. How it is checked</p>
             <p>
-              It learns from the older 75% of history and is graded on the newest 25%, with a {run.data.horizonDays}-day gap between them so no
-              answer leaks. The model is a regularised logistic regression: simple enough that every weight above is shown and explained.
+              Six times over, it learns only from data before a period and is graded on that period, with a {run.data.horizonDays}-day gap so
+              no answer leaks. Skill has to show up in most periods to count. The model is a regularised logistic regression: simple enough that
+              every weight above is shown and explained.
             </p>
           </div>
           <div>
@@ -481,7 +537,9 @@ export function LearningWorkspace() {
             <span className="flex items-start gap-1.5">
               <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
               An AUC of 0.55–0.60 is typical of real, usable skill in markets; anything far higher on daily crypto data would be a red flag for a
-              bug, not genius. It ranks coins against BTC; it does not know news, unlocks or listings. Only coins listed today are in the data, and
+              bug, not genius. It ranks coins against each other and says nothing about whether the whole market will rise or fall. It is better
+              at flagging likely laggards (very volatile or overextended coins) than at finding big winners, and it does not know news, unlocks
+              or listings. Only coins listed today are in the data, and
               patterns can stop working: that is why it retrains, re-tests and shows its record every day.
             </span>
           </Notice>

@@ -52,7 +52,7 @@ export const GET = withApi(async ({ req, user }) => {
     accuracy: accuracyOf(items),
     rule:
       source === "model"
-        ? `A top pick is right if it beat BTC over ${horizon}; a bottom pick is right if it lagged BTC.`
+        ? `A top pick is right if it did better over ${horizon} than the average of that run's bottom picks; a bottom pick is right if it did worse than the average of the top picks. (Runs of the earlier model design were scored against BTC.)`
         : `A directional call is right if price moved at least ${HORIZONS[horizon].thresholdPercent}% its way after ${horizon} (close to close); smaller moves are inconclusive. Neutral calls are right if the move stayed within that band.`,
   };
 });

@@ -29,6 +29,26 @@ interface Payload {
   to: number | null;
   results: Array<{ key: string; stats: Stats[] }>;
   firing: Record<string, Array<{ symbol: string; baseAsset: string; change24h: number }>>;
+  exits: {
+    pairs: number;
+    rules: Array<{ key: string; label: string; detail: string }>;
+    entrySets: Array<{ key: string; label: string }>;
+    results: Array<{
+      entry: string;
+      stats: Array<{
+        rule: string;
+        trades: number;
+        winRatePercent: number;
+        avgReturnPercent: number;
+        medianReturnPercent: number;
+        avgHoldDays: number;
+        returnPerDayPercent: number;
+        profitFactor: number | null;
+        p10ReturnPercent: number;
+        worstReturnPercent: number;
+      }>;
+    }>;
+  } | null;
   fetchedAt: string;
   stale: boolean;
 }
@@ -63,6 +83,7 @@ const td = "px-3 py-2 whitespace-nowrap";
 
 export function SignalLab() {
   const [h, setH] = useState<"7" | "30">("7");
+  const [entrySet, setEntrySet] = useState("breakout");
   const { data, error, loading } = useApi<Payload>("/api/backtest");
   const horizon = Number(h);
 
@@ -167,6 +188,83 @@ export function SignalLab() {
         </div>
         {!data.results.length ? <EmptyState title="No results" /> : null}
       </Panel>
+
+      {data.exits ? (
+        <Panel>
+          <PanelHeader
+            title="Which exit rule worked best?"
+            description="The same entries, closed seven different ways. Entry at the daily close of the signal day; stops and targets are simulated on the following daily candles."
+            actions={
+              <Segmented
+                label="Entries"
+                value={entrySet}
+                onChange={setEntrySet}
+                options={data.exits.entrySets.map((e) => ({ value: e.key, label: e.label }))}
+              />
+            }
+          />
+          {(() => {
+            const rows = [...(data.exits.results.find((r) => r.entry === entrySet)?.stats ?? [])].sort(
+              (a, b) => (b.profitFactor ?? 0) - (a.profitFactor ?? 0),
+            );
+            const best = rows[0]?.rule;
+            return (
+              <div className="overflow-x-auto">
+                <table className="w-full text-[0.8125rem]">
+                  <thead className="border-b border-border bg-surface-2/50">
+                    <tr>
+                      <th className={th}>Exit rule</th>
+                      <th className={cn(th, "text-right")}>Trades</th>
+                      <th className={cn(th, "text-right")}>Win rate</th>
+                      <th className={cn(th, "text-right")}>Avg result</th>
+                      <th className={cn(th, "text-right")}>Median</th>
+                      <th className={cn(th, "text-right")}>Days held</th>
+                      <th className={cn(th, "text-right")}>
+                        <Tooltip content="Total gains divided by total losses. Above 1 the rule made money; the higher the better.">
+                          <span className="cursor-help underline decoration-dotted underline-offset-2">Profit factor</span>
+                        </Tooltip>
+                      </th>
+                      <th className={cn(th, "text-right")}>
+                        <Tooltip content="A typical bad trade: 1 in 10 trades did worse than this.">
+                          <span className="cursor-help underline decoration-dotted underline-offset-2">Bad trade</span>
+                        </Tooltip>
+                      </th>
+                      <th className={cn(th, "text-right")}>Worst</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((s) => {
+                      const rule = data.exits!.rules.find((r) => r.key === s.rule);
+                      return (
+                        <tr key={s.rule} className="border-b border-border last:border-0">
+                          <td className="px-3 py-2">
+                            <span className="font-medium">{rule?.label ?? s.rule}</span>
+                            {s.rule === best ? <Badge tone="up" className="ml-2">Best</Badge> : null}
+                            <span className="block max-w-md whitespace-normal text-[0.6875rem] text-muted">{rule?.detail}</span>
+                          </td>
+                          <td className={cn(td, "num text-right")}>{s.trades}</td>
+                          <td className={cn(td, "num text-right")}>{formatPercent(s.winRatePercent, { sign: false, digits: 0 })}</td>
+                          <td className={cn(td, "text-right")}><ChangeText value={s.avgReturnPercent} showIcon={false} /></td>
+                          <td className={cn(td, "text-right")}><ChangeText value={s.medianReturnPercent} showIcon={false} /></td>
+                          <td className={cn(td, "num text-right")}>{s.avgHoldDays.toFixed(1)}</td>
+                          <td className={cn(td, "num text-right", (s.profitFactor ?? 0) >= 1 ? "text-up" : "text-down")}>{s.profitFactor?.toFixed(2) ?? "—"}</td>
+                          <td className={cn(td, "num text-right text-down")}>{formatPercent(s.p10ReturnPercent, { digits: 0 })}</td>
+                          <td className={cn(td, "num text-right text-down")}>{formatPercent(s.worstReturnPercent, { digits: 0 })}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+          <p className="border-t border-border px-4 py-2.5 text-[0.6875rem] text-muted">
+            Win rate alone misleads here: the best rules lose more often than they win, but their winners are much larger than their losers.
+            Autopilot&apos;s exit plan uses the trend exit: sell on a daily close below the 20-day average, with a 3×ATR safety stop. No fees or
+            slippage are included.
+          </p>
+        </Panel>
+      ) : null}
 
       <Notice tone="warn" title="How to read this">
         <span className="flex items-start gap-1.5">

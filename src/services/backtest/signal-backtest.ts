@@ -1,6 +1,7 @@
 import type { Kline } from "@/services/binance/schemas";
 import { bollinger, rsi, sma } from "@/services/indicators/core";
 import { THRESHOLDS, type DiscoverySignal } from "@/services/discovery/signals";
+import { isFibPullback } from "@/services/indicators/fibonacci";
 
 /**
  * Historical test of the discovery signals: on every past day where a signal *started* firing,
@@ -20,6 +21,7 @@ export const BACKTEST_SIGNALS = [
   "volatility_squeeze",
   "trend_pullback",
   "accumulation",
+  "fib_pullback",
 ] as const satisfies readonly DiscoverySignal[];
 export type BacktestSignal = (typeof BACKTEST_SIGNALS)[number];
 export type BacktestKey = BacktestSignal | "two_plus" | "baseline";
@@ -155,6 +157,16 @@ export function signalSeries(candles: Kline[], btcCloseByDay: Map<number, number
 
     if (s50[i] != null && s200[i] != null && s50[i]! > s200[i]! && c > s200[i]! && r14[i] != null && r14[i]! >= THRESHOLDS.pullbackRsiLow && r14[i]! <= THRESHOLDS.pullbackRsiHigh) {
       out.trend_pullback[i] = true;
+    }
+
+    if (
+      isFibPullback(candles, i, c, {
+        lookback: THRESHOLDS.fibLookbackDays,
+        minSwingPercent: THRESHOLDS.fibMinSwingPercent,
+        maxDaysSinceHigh: THRESHOLDS.fibMaxDaysSinceHigh,
+      })
+    ) {
+      out.fib_pullback[i] = true;
     }
 
     const d = THRESHOLDS.accumulationDays;

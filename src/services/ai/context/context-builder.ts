@@ -217,6 +217,17 @@ export async function buildChatContext(
         range90d: s.range ? { high: round(s.range.high), low: round(s.range.low), positionPercent: round(s.range.positionPercent, 4) } : null,
         swingSupport: s.levels.support.map((v) => round(v)),
         swingResistance: s.levels.resistance.map((v) => round(v)),
+        fibonacci: s.fib
+          ? {
+              note: `Levels of the ${s.fib.direction}-swing between the 90-day low and high. retraced = share of that swing given back. Useful as reference prices for entries, stops and targets; not predictive by themselves.`,
+              swingLow: round(s.fib.low),
+              swingHigh: round(s.fib.high),
+              retracedPercent: round(s.fib.retraced * 100, 3),
+              inGoldenPocket: s.fib.inGoldenPocket,
+              retracements: Object.fromEntries(s.fib.retracements.map((r) => [r.ratio, round(r.price)])),
+              extensions: Object.fromEntries(s.fib.extensions.map((r) => [r.ratio, round(r.price)])),
+            }
+          : null,
         ruleBasedReadings: s.signals.map((x) => `${x.name}: ${x.value} — ${x.note}`),
         warnings: s.warnings,
       };
@@ -241,7 +252,7 @@ export async function buildChatContext(
       if (view && learned) {
         entry.learnedModel = {
           note:
-            "The app's own model, trained daily on ~2.5 years of daily data for the 100 most liquid pairs. probability = chance this pair beats BTC over the next 7 days. " +
+            "The app's own model, trained daily on ~2.5 years of daily data for the 100 most liquid pairs. probability = chance this pair does better than the typical (median) liquid coin over the next 7 days; it ranks coins against each other and says nothing about the market's direction. " +
             `Out-of-sample AUC ${learned.test.metrics.auc} (0.5 = no skill); typical probability ${learned.test.metrics.baseRate}. Treat as one input, weighted by its trust.`,
           probability: view.probability,
           edgeVsTypicalPoints: view.edgePoints,

@@ -1,5 +1,6 @@
 import { withApi } from "@/lib/api/handler";
-import { getSignalBacktest } from "@/services/backtest/backtest-service";
+import { getExitBacktest, getSignalBacktest } from "@/services/backtest/backtest-service";
+import { ENTRY_SETS, EXIT_RULES } from "@/services/backtest/exit-backtest";
 import { BACKTEST_SIGNALS } from "@/services/backtest/signal-backtest";
 import { getDiscoveryScan } from "@/services/discovery/discovery-service";
 
@@ -9,6 +10,7 @@ export const maxDuration = 60;
 
 export const GET = withApi(async () => {
   const [bt, scan] = await Promise.all([getSignalBacktest(), getDiscoveryScan()]);
+  const exits = await getExitBacktest().catch(() => null);
   // Which pairs fire each signal right now, most liquid first.
   const firing = Object.fromEntries(
     BACKTEST_SIGNALS.map((s) => [
@@ -24,6 +26,7 @@ export const GET = withApi(async () => {
     ...bt.data,
     universe: bt.data.universe.length,
     firing,
+    exits: exits ? { ...exits.data, rules: EXIT_RULES, entrySets: ENTRY_SETS } : null,
     fetchedAt: new Date(bt.fetchedAt).toISOString(),
     stale: bt.stale,
   };

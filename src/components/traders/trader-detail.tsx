@@ -330,7 +330,8 @@ function StartValueDialog({ traderId, current, onSaved }: { traderId: string; cu
 
 export function TraderDetail({ id }: { id: string }) {
   const router = useRouter();
-  const { data, error, loading, refresh } = useApi<Detail>(`/api/traders/${id}`);
+  // Open positions are re-priced with live mark prices every minute.
+  const { data, error, loading, refresh } = useApi<Detail>(`/api/traders/${id}`, { refreshInterval: 60_000 });
   const [syncing, setSyncing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
@@ -630,23 +631,25 @@ export function TraderDetail({ id }: { id: string }) {
             )}
             <p className="mt-3 text-[0.65625rem] text-faint">Change score {m.strategy.score}/100. A changing style after a big win (or loss) often precedes worse results.</p>
             {binance && trader.remote ? (
-              <table className="mt-4 w-full text-xs">
-                <thead><tr className="text-muted"><th className="py-1 text-left font-medium">Range</th><th className="py-1 text-right font-medium">ROI</th><th className="py-1 text-right font-medium">P&L</th><th className="py-1 text-right font-medium">Max DD</th><th className="py-1 text-right font-medium">Win</th></tr></thead>
-                <tbody>
-                  {["7D", "30D", "90D"].map((rg) => {
-                    const p = perf(rg);
-                    return (
-                      <tr key={rg} className="border-t border-border">
-                        <td className="py-1">{rg}</td>
-                        <td className="py-1 text-right"><ChangeText value={p?.roiPercent} showIcon={false} /></td>
-                        <td className="num py-1 text-right">{formatUsd(p?.pnl, { compact: true, sign: true })}</td>
-                        <td className="num py-1 text-right text-down">{p?.maxDrawdownPercent != null ? `−${p.maxDrawdownPercent.toFixed(1)}%` : "—"}</td>
-                        <td className="num py-1 text-right">{formatPercent(p?.winRatePercent, { sign: false, digits: 0 })}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead><tr className="text-muted"><th className="py-1 text-left font-medium">Range</th><th className="py-1 text-right font-medium">ROI</th><th className="py-1 text-right font-medium">P&L</th><th className="py-1 text-right font-medium">Max DD</th><th className="py-1 text-right font-medium">Win</th></tr></thead>
+                  <tbody>
+                    {["7D", "30D", "90D"].map((rg) => {
+                      const p = perf(rg);
+                      return (
+                        <tr key={rg} className="border-t border-border">
+                          <td className="py-1">{rg}</td>
+                          <td className="py-1 text-right"><ChangeText value={p?.roiPercent} showIcon={false} /></td>
+                          <td className="num py-1 text-right">{formatUsd(p?.pnl, { compact: true, sign: true })}</td>
+                          <td className="num py-1 text-right text-down">{p?.maxDrawdownPercent != null ? `−${p.maxDrawdownPercent.toFixed(1)}%` : "—"}</td>
+                          <td className="num py-1 text-right">{formatPercent(p?.winRatePercent, { sign: false, digits: 0 })}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             ) : null}
           </PanelBody>
         </Panel>

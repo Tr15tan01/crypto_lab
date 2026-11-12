@@ -98,26 +98,28 @@ export default async function AnalyticsPage() {
         <Panel>
           <PanelHeader title="Performance by cryptocurrency" description="Realized plus current unrealized P/L" />
           {a.bySymbol.length ? (
-            <table className="w-full text-[0.8125rem]">
-              <thead>
-                <tr className="border-b border-border text-left text-[0.6875rem] text-muted">
-                  <th className="px-4 py-2 font-medium">Pair</th>
-                  <th className="px-3 py-2 text-right font-medium">Positions</th>
-                  <th className="px-3 py-2 text-right font-medium">Realized</th>
-                  <th className="px-4 py-2 text-right font-medium">Unrealized</th>
-                </tr>
-              </thead>
-              <tbody>
-                {a.bySymbol.map((s) => (
-                  <tr key={s.symbol} className="border-b border-border/70 last:border-0">
-                    <td className="px-4 py-2"><Link href={`/crypto/${s.symbol}`} className="hover:text-accent">{s.symbol}</Link></td>
-                    <td className="num px-3 py-2 text-right text-muted">{s.rounds}</td>
-                    <td className="px-3 py-2 text-right"><ChangeText value={s.realizedPnL} format="usd" /></td>
-                    <td className="px-4 py-2 text-right"><ChangeText value={s.unrealizedPnL} format="usd" /></td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-[0.8125rem]">
+                <thead>
+                  <tr className="border-b border-border text-left text-[0.6875rem] text-muted">
+                    <th className="px-4 py-2 font-medium">Pair</th>
+                    <th className="px-3 py-2 text-right font-medium">Positions</th>
+                    <th className="px-3 py-2 text-right font-medium">Realized</th>
+                    <th className="px-4 py-2 text-right font-medium">Unrealized</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {a.bySymbol.map((s) => (
+                    <tr key={s.symbol} className="border-b border-border/70 last:border-0">
+                      <td className="px-4 py-2"><Link href={`/crypto/${s.symbol}`} className="hover:text-accent">{s.symbol}</Link></td>
+                      <td className="num px-3 py-2 text-right text-muted">{s.rounds}</td>
+                      <td className="px-3 py-2 text-right"><ChangeText value={s.realizedPnL} format="usd" /></td>
+                      <td className="px-4 py-2 text-right"><ChangeText value={s.unrealizedPnL} format="usd" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <EmptyState title="No trades yet" />
           )}
@@ -129,34 +131,36 @@ export default async function AnalyticsPage() {
             <EmptyState title="No AI reports yet" description="Generate analysis reports from a coin's page; each is evaluated at 1h, 24h, 7d and 30d." />
           ) : (
             <>
-              <table className="w-full text-[0.8125rem]">
-                <thead>
-                  <tr className="border-b border-border text-left text-[0.6875rem] text-muted">
-                    <th className="px-4 py-2 font-medium">Horizon</th>
-                    <th className="px-3 py-2 text-right font-medium">Evaluated</th>
-                    <th className="px-3 py-2 text-right font-medium">Correct</th>
-                    <th className="px-3 py-2 text-right font-medium">Wrong</th>
-                    <th className="px-3 py-2 text-right font-medium">Inconclusive</th>
-                    <th className="px-3 py-2 text-right font-medium">Hit rate</th>
-                    <th className="px-4 py-2 text-right font-medium">Avg max ▲ / ▼</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {a.ai.byHorizon.map((h) => (
-                    <tr key={h.horizon} className="border-b border-border/70 last:border-0">
-                      <td className="px-4 py-2">{h.horizon} <span className="text-[0.6875rem] text-faint">±{h.thresholdPercent}%</span></td>
-                      <td className="num px-3 py-2 text-right">{h.evaluated}</td>
-                      <td className="num px-3 py-2 text-right">{h.correct}</td>
-                      <td className="num px-3 py-2 text-right">{h.incorrect}</td>
-                      <td className="num px-3 py-2 text-right text-muted">{h.inconclusive}</td>
-                      <td className="num px-3 py-2 text-right">{pct(h.hitRatePercent)}</td>
-                      <td className="num px-4 py-2 text-right text-muted">
-                        {h.avgMaxUpside !== null ? `${formatPercent(h.avgMaxUpside, { digits: 1 })} / ${formatPercent(h.avgMaxDownside, { digits: 1 })}` : "—"}
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[0.8125rem]">
+                  <thead>
+                    <tr className="border-b border-border text-left text-[0.6875rem] text-muted">
+                      <th className="px-4 py-2 font-medium">Horizon</th>
+                      <th className="px-3 py-2 text-right font-medium">Evaluated</th>
+                      <th className="px-3 py-2 text-right font-medium">Correct</th>
+                      <th className="px-3 py-2 text-right font-medium">Wrong</th>
+                      <th className="px-3 py-2 text-right font-medium">Inconclusive</th>
+                      <th className="px-3 py-2 text-right font-medium">Hit rate</th>
+                      <th className="px-4 py-2 text-right font-medium">Avg max ▲ / ▼</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {a.ai.byHorizon.map((h) => (
+                      <tr key={h.horizon} className="border-b border-border/70 last:border-0">
+                        <td className="px-4 py-2">{h.horizon} <span className="text-[0.6875rem] text-faint">±{h.thresholdPercent}%</span></td>
+                        <td className="num px-3 py-2 text-right">{h.evaluated}</td>
+                        <td className="num px-3 py-2 text-right">{h.correct}</td>
+                        <td className="num px-3 py-2 text-right">{h.incorrect}</td>
+                        <td className="num px-3 py-2 text-right text-muted">{h.inconclusive}</td>
+                        <td className="num px-3 py-2 text-right">{pct(h.hitRatePercent)}</td>
+                        <td className="num px-4 py-2 text-right text-muted">
+                          {h.avgMaxUpside !== null ? `${formatPercent(h.avgMaxUpside, { digits: 1 })} / ${formatPercent(h.avgMaxDownside, { digits: 1 })}` : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               <p className="px-4 py-3 text-[0.6875rem] text-faint">
                 {a.ai.reports} reports, {a.ai.withBias} with a stated lean. Hit rate counts only correct vs wrong verdicts. <Link href="/research/reports" className="text-muted hover:text-fg">All reports →</Link>
               </p>

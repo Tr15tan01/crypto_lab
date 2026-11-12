@@ -40,7 +40,7 @@ const STRATEGIES: Strategy[] = [
       </>
     ),
     entry: "Price above the 50-day average, 50-day above 200-day, RSI 50–70 (strong but not stretched).",
-    exit: "Daily close below the 50-day average, or a trailing stop about 2× ATR below the highest close.",
+    exit: "Daily close below the 20-day average (the exit that tested best), with a safety stop about 3× ATR below your entry.",
     fails: "Sideways, choppy markets, where you get stopped out repeatedly. Expect a low win rate offset by large winners.",
   },
   {
@@ -54,8 +54,8 @@ const STRATEGIES: Strategy[] = [
       </>
     ),
     entry: "Daily close above the 90-day high with volume at least 2× its usual level.",
-    exit: "Stop just below the old high (the breakout level); take part of the profit at 2–3× the risk.",
-    fails: "False breakouts that close back inside the range within days, which is why the stop is tight.",
+    exit: "Daily close below the 20-day average, with a safety stop about 3× ATR below entry. On breakouts this beat fixed targets and tight stops by a wide margin in the backtest.",
+    fails: "False breakouts that close back inside the range within days. The trend exit gets you out of those quickly.",
   },
   {
     name: "Relative-strength rotation",
@@ -63,7 +63,7 @@ const STRATEGIES: Strategy[] = [
     worksWhen: "Altcoin seasons, when money spreads from BTC into other coins.",
     howHere: (
       <>
-        The <P href="/learning">Learning</P> model&apos;s top picks rank coins by their chance to beat BTC over 7 days; review them weekly next to
+        The <P href="/learning">Learning</P> model&apos;s top picks rank coins by their chance to do better than the typical coin over 7 days; review them weekly next to
         Discovery&apos;s Strength vs BTC screen.
       </>
     ),
@@ -114,6 +114,20 @@ const STRATEGIES: Strategy[] = [
     fails: "Breaks that reverse immediately. Never buy the squeeze itself before the direction is known.",
   },
   {
+    name: "Fibonacci pullback",
+    idea: "After a strong rise, buy the dip when the price has given back 50–65% of it (the “golden pocket” between the 0.5 and 0.618 levels).",
+    worksWhen: "Unproven. In this app's backtest it did slightly better than BTC, but not reliably enough to rule out luck.",
+    howHere: (
+      <>
+        <P href="/discover">Discovery</P> → Early setups flags it, coin pages list the levels and the chart has a Fibonacci overlay.{" "}
+        <P href="/signals">Signal Lab</P> shows its current track record; Autopilot ignores it until that record is statistically solid.
+      </>
+    ),
+    entry: "Inside the 0.5–0.618 band of a 25%+ rise that peaked within 30 days, ideally with another signal agreeing.",
+    exit: "Daily close below the 20-day average, or a close below the 0.786 level (the pullback has become a reversal).",
+    fails: "When the rise was the end of a move, not the start: the price slices through every level.",
+  },
+  {
     name: "Study the top traders, don't copy them",
     idea: "Use consistently profitable traders as a source of ideas and a confirmation, not as a signal to mirror.",
     worksWhen: "Traders with long histories, drawdowns under about 30%, real capital and positive copier P&L.",
@@ -143,9 +157,17 @@ const STRATEGIES: Strategy[] = [
   },
 ];
 
+const EXIT_FINDINGS = [
+  "The trend exit won on every kind of entry: sell on the first daily close below the 20-day average, with a wide safety stop (about 3× ATR below entry) for sudden drops.",
+  "Tight stops (2× ATR) did far worse, and lost money on ordinary entries: normal daily swings in crypto hit them before the trade has a chance.",
+  "Fixed profit targets cut the big winners that pay for all the small losses. Let a winner run until the trend exit fires.",
+  "Expect to be wrong often: the best rule won fewer than 4 trades in 10, but its winners were far larger than its losers. Judge it by profit factor, not win rate.",
+  "Holding and hoping was the most dangerous: without a stop, 1 trade in 10 lost more than 30% within a month.",
+];
+
 const RISK_RULES = [
   "Risk at most 1% of the portfolio per trade: position size = 1% of the portfolio ÷ the distance to your stop. Autopilot calculates this for you.",
-  "Decide the stop before you buy, and set it as a price alert straight away.",
+  "Decide your exit before you buy: the 20-day average as the trend exit and a safety stop about 3× ATR below entry. Set both as price alerts straight away.",
   "Keep any single position under 15–25% of the portfolio, and keep at least 5% in cash.",
   "After three losses in a row, halve your position size until you have a win.",
   "Record every decision in the Decision Journal (the market snapshot is saved automatically) and review it when your horizon ends.",
@@ -416,6 +438,19 @@ export default async function GuidePage() {
                 </div>
               ))}
             </div>
+            <div className="rounded-lg border border-accent/30 bg-accent/5 p-3.5">
+              <p className="text-[0.8125rem] font-semibold text-fg">Getting out: what the exit backtest found</p>
+              <p className="mt-1 text-xs text-muted">
+                Seven exit rules were tested on the same entries over about 2.5 years of daily data for the 100 most liquid coins. Current numbers
+                are in <P href="/signals">Signal Lab</P> → Which exit rule worked best; <P href="/autopilot">Autopilot</P> shows the exit level for
+                every position and idea.
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted">
+                {EXIT_FINDINGS.map((r) => (
+                  <li key={r}>{r}</li>
+                ))}
+              </ul>
+            </div>
             <div className="rounded-lg border border-border p-3.5">
               <p className="text-[0.8125rem] font-semibold text-fg">Rules that apply to every strategy</p>
               <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted">
@@ -447,17 +482,17 @@ export default async function GuidePage() {
                 [
                   "Autopilot",
                   "/autopilot",
-                  "A plan for the paper portfolio: buy, watch or avoid for new coins and hold, add, trim or sell for positions, with timing, entry zone, target, stop and a risk-based size. Also shows portfolio risk (loss if every stop is hit, concentration, BTC correlation). One click sets price alerts at the stop and target; calls are scored after 7 days.",
+                  "A plan for the paper portfolio: buy, watch or avoid for new coins and hold, add, trim or sell for positions, with timing, entry zone, target, stop and a risk-based size. Also shows portfolio risk (loss if every stop is hit, concentration, BTC correlation). Every position and buy idea carries an exit plan (the 20-day average and a safety stop). One click sets price alerts; calls are scored after 7 days. The page picks up a fresh plan every 5 minutes.",
                 ],
                 [
                   "Signal Lab",
                   "/signals",
-                  "A backtest of every discovery signal over ~2.5 years: win rate, median return and result vs BTC 7 and 30 days after it fired, compared with a random-coin baseline. Tells you which signals have actually worked; Autopilot uses it to weight them.",
+                  "A backtest of every discovery signal over ~2.5 years: win rate, median return and result vs BTC 7 and 30 days after it fired, compared with a random-coin baseline. Tells you which signals have actually worked; Autopilot uses it to weight them. A second table compares seven exit rules on the same entries.",
                 ],
                 [
                   "Learning",
                   "/learning",
-                  "The app's self-learning model. Every day it replays ~2.5 years of daily data for the 100 most liquid pairs, learns which factors predicted a coin beating BTC over the next week, and tests that on a later period it never saw. Shows what it learned in plain words, how reliable it proved (AUC, top-vs-bottom spread, calibration), how its views changed between runs, its current picks, and how well its own past calls were calibrated. Its view appears on coin pages, in Autopilot (weighted by its proven skill) and in the AI chat.",
+                  "The app's self-learning model. Every day it replays ~2.5 years of daily data for the 100 most liquid pairs, learns which factors predicted a coin doing better than the typical coin over the next week, and tests that on six later periods it never saw. Shows what it learned in plain words, how reliable it proved (AUC, top-vs-bottom spread, calibration), how its views changed between runs, its current picks, and how well its own past calls were calibrated. Its view appears on coin pages, in Autopilot (weighted by its proven skill) and in the AI chat.",
                 ],
                 [
                   "Top Traders",

@@ -7,6 +7,7 @@ import {
   CartesianGrid,
   ComposedChart,
   Line,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -18,6 +19,7 @@ import { Segmented } from "@/components/ui/radix";
 import { Button, EmptyState, Skeleton } from "@/components/ui/primitives";
 import { Freshness } from "@/components/market/indicators";
 import { bollinger, ema } from "@/services/indicators/core";
+import { fibonacciLevels } from "@/services/indicators/fibonacci";
 import {
   ALLOWED_INTERVALS,
   DEFAULT_INTERVAL,
@@ -53,13 +55,14 @@ interface Row {
   bbLower: number | null;
 }
 
-type Overlay = "ema20" | "ema50" | "ema200" | "bb";
+type Overlay = "ema20" | "ema50" | "ema200" | "bb" | "fib";
 
 const OVERLAYS: Array<{ key: Overlay; label: string; color: string }> = [
   { key: "ema20", label: "EMA 20", color: SERIES[0] },
   { key: "ema50", label: "EMA 50", color: SERIES[1] },
   { key: "ema200", label: "EMA 200", color: SERIES[2] },
   { key: "bb", label: "Bollinger 20,2", color: CHART.muted },
+  { key: "fib", label: "Fibonacci", color: "var(--color-accent)" },
 ];
 
 /** Candle body + wick. Up candles are hollow, down candles filled — direction is not colour-only. */
@@ -171,6 +174,16 @@ export function PriceChart({ symbol, initialPeriod = "30d" }: { symbol: string; 
       bbLower: bb.lower[i] ?? null,
     }));
   }, [data]);
+
+  // Fibonacci levels of the swing between the highest high and lowest low in view.
+  const fib = useMemo(() => {
+    if (rows.length < 20) return null;
+    return fibonacciLevels(
+      rows.map((r) => ({ openTime: r.t, high: r.high, low: r.low, close: r.close })),
+      rows[rows.length - 1]!.close,
+      rows.length,
+    );
+  }, [rows]);
 
   const span = rows.length > 1 ? rows[rows.length - 1]!.t - rows[0]!.t : 0;
   const tooManyCandles = rows.length > 400;
@@ -317,6 +330,19 @@ export function PriceChart({ symbol, initialPeriod = "30d" }: { symbol: string; 
                   isAnimationActive={false}
                 />
               )}
+              {overlays.has("fib") && fib
+                ? [{ ratio: 0, price: fib.direction === "up" ? fib.high : fib.low }, ...fib.retracements, { ratio: 1, price: fib.direction === "up" ? fib.low : fib.high }].map((l) => (
+                    <ReferenceLine
+                      key={l.ratio}
+                      y={l.price}
+                      stroke="var(--color-accent)"
+                      strokeOpacity={l.ratio === 0.5 || l.ratio === 0.618 ? 0.9 : 0.45}
+                      strokeDasharray={l.ratio === 0 || l.ratio === 1 ? undefined : "5 4"}
+                      strokeWidth={1}
+                      label={{ value: String(l.ratio), position: "insideLeft", fill: CHART.axisText, fontSize: "0.625rem", dy: -6 }}
+                    />
+                  ))
+                : null}
               {(["ema20", "ema50", "ema200"] as const).map((k, i) =>
                 overlays.has(k) ? (
                   <Line key={k} dataKey={k} stroke={SERIES[i]} strokeWidth={1.5} dot={false} isAnimationActive={false} />

@@ -57,7 +57,7 @@ interface Shortlist {
 type ScreenKey = "top" | "new" | "volume" | "momentum" | "trend" | "setup";
 
 const TREND_SIGNALS: DiscoverySignal[] = ["golden_cross", "oversold_bounce", "breakout"];
-const SETUP_SIGNALS: DiscoverySignal[] = ["volatility_squeeze", "trend_pullback", "accumulation"];
+const SETUP_SIGNALS: DiscoverySignal[] = ["volatility_squeeze", "trend_pullback", "accumulation", "fib_pullback"];
 
 const SCREENS: Array<{
   key: ScreenKey;
@@ -104,7 +104,7 @@ const SCREENS: Array<{
   {
     key: "setup",
     label: "Early setups",
-    description: "Before the move: a volatility squeeze (unusually quiet price), a dip inside a long-term uptrend, or buying volume building while the price is still flat.",
+    description: "Before the move: a volatility squeeze (unusually quiet price), a dip inside a long-term uptrend, a pullback to the Fibonacci golden pocket, or buying volume building while the price is still flat.",
     filter: (r) => r.signals.some((s) => SETUP_SIGNALS.includes(s)),
     sort: (a, b) => b.score - a.score || (b.vsBtc30d ?? 0) - (a.vsBtc30d ?? 0),
   },

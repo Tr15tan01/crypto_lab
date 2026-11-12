@@ -43,6 +43,7 @@ interface Rec {
   cautions: string[];
   holding: { quantity: number; averageCost: number; marketValue: number; pnlPercent: number } | null;
   btcCorrelation?: number | null;
+  exitPlan?: { trendLine: number | null; trendBroken: boolean; hardStop: number | null; hardStopHit: boolean; cushionPercent: number | null } | null;
   model?: ModelView | null;
   rawConfidence?: number;
 }
@@ -179,8 +180,8 @@ function RecCard({ r, ctx }: { r: Rec; ctx: TradeContext | undefined }) {
         ) : (
           <Level label="Entry zone" value={r.entry ? `${formatPrice(r.entry.low)}–${formatPrice(r.entry.high)}` : "—"} />
         )}
-        <Level label="Target" value={formatPrice(r.target)} sub={pct(r.target)} tone="up" />
-        <Level label="Stop" value={formatPrice(r.stop)} sub={pct(r.stop)} tone="down" />
+        <Level label={r.holding ? "Next resistance" : "Target"} value={formatPrice(r.target)} sub={pct(r.target)} tone="up" />
+        <Level label={r.holding ? "Exit below" : "Safety stop"} value={formatPrice(r.stop)} sub={pct(r.stop)} tone="down" />
         <Level label="Reward/risk" value={r.riskReward !== null ? `${r.riskReward.toFixed(1)} : 1` : "—"} />
         <Level
           label={isSell ? "Sell" : "Size"}
@@ -194,6 +195,24 @@ function RecCard({ r, ctx }: { r: Rec; ctx: TradeContext | undefined }) {
           sub={!isSell && r.suggestedAllocationPercent !== null ? `${r.suggestedAllocationPercent.toFixed(1)}%` : undefined}
         />
       </div>
+
+      {r.exitPlan && r.exitPlan.trendLine !== null && (r.holding || r.action === "BUY") ? (
+        <p className="mt-2 rounded-md border border-border bg-surface-2/50 px-2 py-1.5 text-[0.6875rem]">
+          <span className="font-medium text-fg">Exit plan:</span>{" "}
+          <span className="text-muted">
+            sell on a daily close below the 20-day average{" "}
+            <span className={cn("num", r.exitPlan.trendBroken ? "text-down" : "text-fg")}>{formatPrice(r.exitPlan.trendLine)}</span>
+            {r.exitPlan.cushionPercent !== null ? ` (${r.exitPlan.cushionPercent >= 0 ? `${r.exitPlan.cushionPercent.toFixed(1)}% below the price` : "already below it"})` : ""}
+            {r.exitPlan.hardStop !== null ? (
+              <>
+                {" "}· safety stop <span className="num text-fg">{formatPrice(r.exitPlan.hardStop)}</span>
+              </>
+            ) : null}
+            . No fixed profit target: let winners run.{" "}
+            <Link href="/signals" className="underline">Why</Link>
+          </span>
+        </p>
+      ) : null}
 
       {r.btcCorrelation != null && r.baseAsset !== "BTC" ? (
         <p className="mt-1.5 text-[0.65625rem] text-faint">
@@ -273,7 +292,8 @@ export function AutopilotWorkspace() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const url = `/api/autopilot?risk=${risk}&maxPosition=${maxPos}`;
-  const { data, error, loading, setData } = useApi<Plan>(url);
+  // The plan is rebuilt server-side every 5 minutes; pick the new one up without a reload.
+  const { data, error, loading, setData } = useApi<Plan>(url, { refreshInterval: 5 * 60_000 });
 
   const forceRefresh = async () => {
     setRefreshing(true);
