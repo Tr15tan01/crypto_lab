@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { Button, EmptyState } from "@/components/ui/primitives";
 import { ChangeText } from "@/components/market/indicators";
 import { TradeDialog, type TradeContext } from "./trade-dialog";

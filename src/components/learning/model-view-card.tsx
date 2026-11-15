@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { GraduationCap } from "lucide-react";
 import { useApi } from "@/hooks/use-api";
 import { Panel, PanelBody, PanelHeader, Skeleton } from "@/components/ui/primitives";

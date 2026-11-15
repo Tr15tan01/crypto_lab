@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, Pencil, Star } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
@@ -24,6 +24,7 @@ import { ResearchPanel, type ResearchListItem } from "@/components/research/rese
 import { AskAIButton } from "@/components/research/ask-ai-button";
 import { AlertsPanel, type AlertItem } from "@/components/alerts/alerts-panel";
 import { JournalEntryCard, type JournalRowData } from "@/components/journal/journal-entry";
+import { AutoRefresh } from "@/components/layout/auto-refresh";
 import { formatDate, formatPercent, formatPrice, formatQuantity, formatUsd } from "@/lib/utils/format";
 
 const SYMBOL_RE = /^[A-Z0-9]{2,20}$/;
@@ -111,6 +112,8 @@ export default async function CryptoPage({ params }: PageProps<"/crypto/[symbol]
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* The header price updates on its own; this keeps the position value and P&L current too. */}
+          <AutoRefresh />
           {watch ? (
             <Badge tone="accent" className="h-8 px-2.5">
               <Star className="size-3.5 fill-accent" /> Watching

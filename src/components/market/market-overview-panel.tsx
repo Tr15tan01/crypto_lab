@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { useApi } from "@/hooks/use-api";
 import { EmptyState, Notice } from "@/components/ui/primitives";
 import { ChangeText, Freshness } from "./indicators";

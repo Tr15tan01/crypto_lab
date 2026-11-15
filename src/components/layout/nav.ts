@@ -13,6 +13,8 @@ import {
   Bot,
   FlaskConical,
   GraduationCap,
+  Compass,
+  ListChecks,
   type LucideIcon,
 } from "lucide-react";
 
@@ -25,9 +27,11 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/direction", label: "Market Direction", icon: Compass },
   { href: "/market", label: "Market Scanner", icon: ScanSearch, match: ["/crypto"] },
   { href: "/discover", label: "Discovery", icon: Telescope },
   { href: "/autopilot", label: "Autopilot", icon: Bot },
+  { href: "/strategies", label: "Strategies", icon: ListChecks },
   { href: "/signals", label: "Signal Lab", icon: FlaskConical },
   { href: "/learning", label: "Learning", icon: GraduationCap },
   { href: "/traders", label: "Top Traders", icon: Trophy },

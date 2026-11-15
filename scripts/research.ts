@@ -41,6 +41,19 @@ async function main() {
     }
   }
 
+  const { getStrategyBacktest } = await import("../src/services/backtest/backtest-service");
+  const { STRATEGIES } = await import("../src/services/backtest/strategy-backtest");
+  const sb = (await getStrategyBacktest()).data;
+  console.log(`
+Strategies (${sb.pairs} pairs)`);
+  for (const r of sb.results) {
+    const o = r.overall;
+    const reg = (["up", "sideways", "down"] as const).map((k) => `${k}:${r.byRegime[k] ? `${r.byRegime[k]!.profitFactor}(${r.byRegime[k]!.trades})` : "-"}`).join(" ");
+    console.log(
+      `${STRATEGIES.find((s) => s.key === r.key)!.name.padEnd(30)} n=${String(o?.trades ?? 0).padStart(5)} win=${o?.winRatePercent}% avg=${o?.avgReturnPercent}% vsBTC=${r.avgVsBtcPercent}% hold=${o?.avgHoldDays}d PF=${o?.profitFactor} | PF by regime ${reg} | now ${r.firingNow.length}`,
+    );
+  }
+
   const set = buildTrainingSet(pairs, btc);
   if (!set) throw new Error("BTC history unavailable");
   const cv = M.crossValidate(set.samples);

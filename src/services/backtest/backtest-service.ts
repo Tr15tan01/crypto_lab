@@ -8,6 +8,11 @@ import { externalCache } from "@/services/external/http";
 import { MarketCache } from "@/services/binance/cache";
 import { runBacktest, type BacktestResult } from "./signal-backtest";
 import { runExitBacktest, type ExitBacktestResult } from "./exit-backtest";
+import { runStrategyBacktest, type StrategyBacktest } from "./strategy-backtest";
+import { directionHistory } from "@/services/market/direction-service";
+import { regimeOf } from "@/services/market/direction";
+import { fearGreedHistory } from "@/services/signals/market-intel";
+import { isTrackerOrPegged } from "@/services/market/asset-names";
 
 /**
  * Signal Lab: runs the signal backtest over the most liquid pairs of the current discovery scan
@@ -39,17 +44,20 @@ export interface UniverseHistories {
   /** Closed daily candles per pair (BTCUSDT included), oldest first. */
   pairs: Array<{ symbol: string; candles: Kline[] }>;
   btc: Kline[] | null;
+  /** Today's still-forming candle per pair, as of `loadedAt` (for scoring with current prices). */
+  live: Record<string, Kline>;
+  loadedAt: number;
 }
 
 const globalForHistories = globalThis as unknown as { __cryptoLabHistories?: MarketCache };
 
 /**
  * Up to 1000 closed daily candles for the most liquid pairs. Shared by Signal Lab and the
- * learning model; kept in memory only (too large to persist) for 6 hours.
+ * learning model; kept in memory only (too large to persist) for 3 hours.
  */
 export async function loadUniverseHistories(): Promise<UniverseHistories> {
   globalForHistories.__cryptoLabHistories ??= new MarketCache(null, Date.now, 2);
-  const res = await globalForHistories.__cryptoLabHistories.get("universe:histories", 6 * 60 * 60, loadHistories);
+  const res = await globalForHistories.__cryptoLabHistories.get("universe:histories", 3 * 60 * 60, loadHistories);
   return res.data;
 }
 
@@ -64,10 +72,16 @@ async function loadHistories(): Promise<UniverseHistories> {
   const md = marketData();
   const histories = await mapLimit(universe, CONCURRENCY, (s) => md.recentDailyCandles(s, CANDLES).catch((): Kline[] | null => null));
   const now = Date.now();
+  const live: Record<string, Kline> = {};
   const pairs = universe
-    .map((symbol, i) => ({ symbol, candles: (histories[i] ?? []).filter((k) => k.closeTime < now) }))
+    .map((symbol, i) => {
+      const all = histories[i] ?? [];
+      const forming = all[all.length - 1];
+      if (forming && forming.closeTime >= now) live[symbol] = forming;
+      return { symbol, candles: all.filter((k) => k.closeTime < now) };
+    })
     .filter((p) => p.candles.length > 0);
-  return { pairs, btc: pairs.find((p) => p.symbol === "BTCUSDT")?.candles ?? null };
+  return { pairs, btc: pairs.find((p) => p.symbol === "BTCUSDT")?.candles ?? null, live, loadedAt: now };
 }
 
 async function compute(): Promise<SignalBacktest> {
@@ -86,6 +100,21 @@ export async function getExitBacktest(): Promise<MarketResult<ExitBacktestResult
     async () => {
       const { pairs, btc } = await loadUniverseHistories();
       return runExitBacktest(pairs.filter((p) => p.symbol !== "BTCUSDT"), btc);
+    },
+    { persist: true, persistEverySeconds: TTL },
+  );
+}
+
+/** Complete strategies with their outcomes overall and per market regime; cached like the others. */
+export async function getStrategyBacktest(): Promise<MarketResult<StrategyBacktest>> {
+  return externalCache().get(
+    "backtest:strategies:v1",
+    TTL,
+    async () => {
+      const [{ pairs, btc }, history, fng] = await Promise.all([loadUniverseHistories(), directionHistory(), fearGreedHistory()]);
+      const regimeByDay = new Map(history.map((d) => [Math.floor(d.t / 86_400_000), regimeOf(d.score)]));
+      const alts = pairs.filter((p) => p.symbol !== "BTCUSDT" && !isTrackerOrPegged(p.symbol.replace(/USDT$/, ""), p.candles.map((k) => k.close)));
+      return runStrategyBacktest(alts, btc, regimeByDay, fng);
     },
     { persist: true, persistEverySeconds: TTL },
   );

@@ -89,7 +89,7 @@ export function simulateExit(candles: Kline[], i: number, atrAtEntry: number, sm
 }
 
 export interface ExitStats {
-  rule: ExitRule;
+  rule: string;
   trades: number;
   winRatePercent: number;
   avgReturnPercent: number;
@@ -111,7 +111,7 @@ function quantile(sorted: number[], q: number) {
   return sorted[lo]! + (sorted[hi]! - sorted[lo]!) * (pos - lo);
 }
 
-export function exitStats(rule: ExitRule, trades: ExitTrade[]): ExitStats | null {
+export function exitStats(rule: string, trades: ExitTrade[]): ExitStats | null {
   if (!trades.length) return null;
   const rets = trades.map((t) => t.returnPercent);
   const sorted = [...rets].sort((a, b) => a - b);

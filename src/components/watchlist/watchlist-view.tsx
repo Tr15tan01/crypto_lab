@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { Fragment, useMemo, useState } from "react";
 import { ChevronDown, Pencil, Star } from "lucide-react";
 import { useApi } from "@/hooks/use-api";

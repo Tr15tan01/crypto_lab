@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { after } from "next/server";
 import { Bell, ArrowRight } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
@@ -14,6 +14,8 @@ import { listWatchlist } from "@/services/watchlist/watchlist-service";
 import { listResearch } from "@/services/research/research-service";
 import { listNotifications } from "@/services/alerts/alerts-service";
 import { latestRun } from "@/services/learning/learning-service";
+import { cachedMarketDirection } from "@/services/market/direction-service";
+import { DirectionBar } from "@/components/direction/direction-workspace";
 import { serialize } from "@/types/serialized";
 import { PageHeader } from "@/components/layout/page-header";
 import { AutoRefresh } from "@/components/layout/auto-refresh";
@@ -38,7 +40,7 @@ export default async function DashboardPage() {
   const user = await requireUser();
   after(() => maybeCreateScheduledSnapshot(user.id).catch(() => false));
 
-  const [stateRes, marketRes, watchRes, txRes, researchRes, notifRes, alertCountRes, learnRes] = await Promise.all([
+  const [stateRes, marketRes, watchRes, txRes, researchRes, notifRes, alertCountRes, learnRes, directionRes] = await Promise.all([
     safe(async () => {
       const state = await getPortfolioState(user.id);
       const snaps = await listSnapshots(user.id, state.portfolio._id, new Date(requestTime() - 90 * 86_400_000));
@@ -54,7 +56,9 @@ export default async function DashboardPage() {
     safe(() => listNotifications(user.id), "dashboard.notifications"),
     safe(async () => (await getCollections()).alerts.countDocuments({ userId: user.id, status: "active" }), "dashboard.alerts"),
     safe(() => latestRun(), "dashboard.learning"),
+    safe(() => cachedMarketDirection(), "dashboard.direction"),
   ]);
+  const direction = directionRes.data;
   const learned = learnRes.data;
 
   const s = stateRes.data?.state;
@@ -119,6 +123,36 @@ export default async function DashboardPage() {
           )}
         </Panel>
       </div>
+
+      <Panel className="mb-4">
+        <PanelHeader
+          title="Market direction"
+          description={direction ? `Reading from ${formatRelative(direction.asOf)}: BTC trend, breadth across ${direction.coins} coins, altcoin strength and mood.` : "Open Market Direction for the first reading."}
+          actions={<Viewall href="/direction" />}
+        />
+        {direction ? (
+          <PanelBody className="grid items-center gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
+            <div>
+              <p className={`text-lg font-semibold tracking-tight ${direction.regime === "up" ? "text-up" : direction.regime === "down" ? "text-down" : "text-fg"}`}>
+                {direction.zoneLabel}
+              </p>
+              <p className="num text-xs text-muted">
+                score {direction.score > 0 ? "+" : ""}{direction.score}
+                {direction.scoreWeekAgo !== null ? ` · a week ago ${direction.scoreWeekAgo > 0 ? "+" : ""}${direction.scoreWeekAgo}` : ""}
+              </p>
+            </div>
+            <div>
+              <DirectionBar score={direction.score} />
+              <p className="mt-2 text-xs text-muted">
+                {direction.components.slice(0, 3).map((c) => c.note).join(" · ")}.{" "}
+                <Link href="/strategies" className="text-accent hover:underline">Strategies that fit →</Link>
+              </p>
+            </div>
+          </PanelBody>
+        ) : (
+          <PanelBody><p className="text-xs text-muted">No reading yet.</p></PanelBody>
+        )}
+      </Panel>
 
       <Panel className="mb-4">
         <PanelHeader title="Market overview" actions={<Viewall href="/market" />} />

@@ -8,6 +8,7 @@ import { summarizeTrackRecord } from "@/services/predictions/scoring";
 import type { PricedSymbol } from "@/services/predictions/prediction-service";
 import { derivatives, fearGreed, orderBook, smartMoney, type SmartMoney } from "@/services/signals/market-intel";
 import { latestRun, scoreCandles } from "@/services/learning/learning-service";
+import { cachedMarketDirection } from "@/services/market/direction-service";
 import type { LearningRunDoc } from "@/models";
 import { getPortfolioState } from "@/services/portfolio/portfolio-service";
 import { scenarioImpact } from "@/services/portfolio/valuation";
@@ -114,6 +115,22 @@ export async function buildChatContext(
       topLosers: o.leaders.losers.map((t) => ({ pair: t.symbol, change24hPercent: round(t.priceChangePercent, 4) })),
     };
     included.push("market overview");
+  }
+
+  const direction = await cachedMarketDirection().catch(() => null);
+  if (direction) {
+    const zone = direction.history.find((h) => h.zone === direction.zone);
+    ctx.marketDirection = {
+      note: "The app's market-direction score (−100 … +100) from BTC trend and momentum, breadth across ~100 coins, altcoin strength and Fear & Greed. It describes the current lean; afterThisZoneHistorically is what followed past readings in the same zone (median result, share of times up). It is not a forecast.",
+      asOf: iso(direction.asOf),
+      score: direction.score,
+      zone: direction.zoneLabel,
+      scoreAWeekAgo: direction.scoreWeekAgo,
+      daysInZone: direction.daysInZone,
+      components: direction.components.map((c) => `${c.label}: ${c.score} — ${c.note}`),
+      afterThisZoneHistorically: zone ? { days: zone.days, btcNext7d: zone.btc7, btcNext30d: zone.btc30, typicalCoinNext7d: zone.alt7, typicalCoinNext30d: zone.alt30 } : null,
+    };
+    included.push("market direction");
   }
 
   const symbols = intent.baseAssets

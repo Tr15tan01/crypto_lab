@@ -9,7 +9,7 @@ import { loadUniverseHistories } from "@/services/backtest/backtest-service";
 import type { LearningRunDoc, PredictionDoc } from "@/models";
 import type { AccuracyItem } from "@/services/predictions/accuracy";
 import { isTrackerOrPegged } from "@/services/market/asset-names";
-import { FEATURES, btcContext, labelAgainstMedian, latestFeatures, samplesFor, type BtcContext, type Sample } from "./features";
+import { FEATURES, btcContext, labelAgainstMedian, latestFeatures, samplesFor, withLiveCandle, type BtcContext, type Sample } from "./features";
 import {
   MODEL_VERSION,
   compareModels,
@@ -31,11 +31,14 @@ import {
  *   2. validate walk-forward over six separate periods (train on the past, test on the next),
  *   3. retrain on everything for live use, explain the weights, diff them against the last run,
  *   4. store the run, and score assets with it (Autopilot, coin pages, chat).
- * Retrains at most once a day (scheduled job, or on demand from the Learning page).
+ * Retrains about three times a day: by the scheduled job (06:00, 14:00, 22:00 UTC), when a page
+ * that uses the model is opened and the last run is over 7 hours old, or on demand. The weights
+ * only change when a new daily candle has closed; the other runs refresh the picks with the
+ * current prices.
  */
 const HORIZON = 7;
 const STRIDE = 3;
-const RETRAIN_EVERY_MS = 24 * 60 * 60_000;
+export const RETRAIN_EVERY_MS = 7 * 60 * 60_000;
 const MIN_TRAIN_GAP_MS = 10 * 60_000;
 
 const g = globalThis as unknown as {
@@ -111,7 +114,7 @@ function pick(model: TrainedModel, symbol: string, x: number[]) {
 
 async function runTraining(trigger: LearningRunDoc["trigger"], userId: string | null): Promise<LearningRunDoc> {
   const started = Date.now();
-  const { pairs, btc } = await loadUniverseHistories();
+  const { pairs, btc, live, loadedAt } = await loadUniverseHistories();
   const set = buildTrainingSet(pairs, btc);
   if (!set) throw new AppError("MARKET_UNAVAILABLE", "BTC history is unavailable, so the model cannot be trained right now.", { retryable: true });
   const { samples, universe: alts, ctx } = set;
@@ -127,9 +130,12 @@ async function runTraining(trigger: LearningRunDoc["trigger"], userId: string | 
   const inSample = evaluate(model, samples);
 
   const prev = await latestRun();
+  // Picks are scored with today's forming candle, so they reflect prices at the time of the run.
+  const liveCtx = btc && live.BTCUSDT ? (btcContext(withLiveCandle([...btc, live.BTCUSDT], loadedAt)) ?? ctx) : ctx;
   const picks = alts
     .map((p) => {
-      const x = latestFeatures(p.candles, ctx);
+      const forming = live[p.symbol];
+      const x = latestFeatures(forming ? withLiveCandle([...p.candles, forming], loadedAt) : p.candles, liveCtx);
       return x ? pick(model, p.symbol, x) : null;
     })
     .filter((p): p is NonNullable<typeof p> => p !== null)
@@ -166,7 +172,9 @@ async function runTraining(trigger: LearningRunDoc["trigger"], userId: string | 
   g.__cryptoLabLearning = { run: doc, loadedAt: Date.now() };
   logger.info("learning.trained", { samples: doc.data.samples, auc: doc.test.metrics.auc, ms: doc.durationMs, trigger });
 
-  if (userId) {
+  // With several runs a day, only tell the user when something actually changed.
+  const topOf = (r: LearningRunDoc | null) => (r?.picks.top ?? []).slice(0, 3).map((p) => p.symbol).join(",");
+  if (userId && (!prev || doc.changes.length > 0 || topOf(prev) !== topOf(doc))) {
     const top = doc.picks.top.slice(0, 3).map((p) => p.symbol.replace(/USDT$/, "")).join(", ");
     await notifications
       .insertOne({
@@ -196,7 +204,7 @@ export async function trainNow(trigger: LearningRunDoc["trigger"], userId: strin
   return g.__cryptoLabTraining;
 }
 
-/** Scheduled job: retrain when the last run is a day old. */
+/** Scheduled job and page visits: retrain when the last run is over 7 hours old. */
 export async function trainIfDue(userId: string | null): Promise<{ trained: boolean; auc?: number }> {
   if (!(await isDue())) return { trained: false };
   const run = await trainNow("scheduled", userId);
@@ -220,7 +228,7 @@ export interface ModelView {
 }
 
 export function scoreCandles(run: LearningRunDoc, candles: Kline[], btc: Kline[] | null): ModelView | null {
-  const x = latestFeatures(candles.filter((k) => k.closeTime < Date.now()), btcContext(btc));
+  const x = latestFeatures(withLiveCandle(candles), btcContext(btc ? withLiveCandle(btc) : null));
   if (!x) return null;
   const p = predict(run.model, x);
   return {

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { ChevronLeft } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
 import { safe } from "@/lib/server/safe";

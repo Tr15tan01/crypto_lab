@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { ArrowDownRight, ArrowRight, ArrowUpRight, CheckCircle2, Clock, MinusCircle, XCircle } from "lucide-react";
 import { Tooltip } from "@/components/ui/radix";
 import { LevelAlertsButton } from "@/components/alerts/level-alerts-button";

@@ -186,6 +186,20 @@ export function labelAgainstMedian(samples: Sample[], minPerDay = 10): Sample[] 
   return out;
 }
 
+/**
+ * Prepares candles for scoring "right now": keeps today's still-forming candle (so the price is
+ * current) with its volume scaled up to a full day, or drops it when the day has barely begun.
+ * Training always uses completed candles only.
+ */
+export function withLiveCandle(candles: Kline[], now = Date.now()): Kline[] {
+  const last = candles[candles.length - 1];
+  if (!last || last.closeTime < now) return candles;
+  const elapsed = (now - last.openTime) / (last.closeTime - last.openTime + 1);
+  const closed = candles.slice(0, -1);
+  if (elapsed < 0.15) return closed;
+  return [...closed, { ...last, volume: last.volume / elapsed, quoteVolume: last.quoteVolume / elapsed }];
+}
+
 /** Features for the most recent closed candle, or null if the history is too short. */
 export function latestFeatures(candles: Kline[], btc: BtcContext | null): number[] | null {
   const rows = featureRows(candles, btc);

@@ -16,6 +16,7 @@ export function AutoRefresh({ seconds = 60, className }: { seconds?: number; cla
   const [paused, setPaused] = useState(false);
   const [pending, startTransition] = useTransition();
   const last = useRef(0);
+  const every = seconds >= 60 ? `${Math.round(seconds / 60)} min` : `${seconds}s`;
 
   useEffect(() => {
     if (paused) return;
@@ -35,7 +36,7 @@ export function AutoRefresh({ seconds = 60, className }: { seconds?: number; cla
   }, [paused, seconds, router]);
 
   return (
-    <Tooltip content={paused ? "Live updates are paused on this page." : `Prices and values on this page refresh every ${seconds >= 60 ? `${Math.round(seconds / 60)} min` : `${seconds}s`} while the tab is open.`}>
+    <Tooltip content={paused ? "Live updates are paused on this page." : `Prices and values on this page refresh every ${every} while the tab is open.`}>
       <button
         type="button"
         onClick={() => setPaused((p) => !p)}
@@ -44,7 +45,7 @@ export function AutoRefresh({ seconds = 60, className }: { seconds?: number; cla
         className={cn("inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[0.6875rem] text-muted transition-colors hover:text-fg", className)}
       >
         <span className={cn("size-1.5 rounded-full", paused ? "bg-faint" : "bg-up", !paused && (pending ? "opacity-40" : "animate-pulse-soft"))} aria-hidden />
-        {paused ? "Paused" : "Live · 1 min"}
+        {paused ? "Paused" : `Live · ${every}`}
         {paused ? <Play className="size-3" /> : <Pause className="size-3" />}
       </button>
     </Tooltip>

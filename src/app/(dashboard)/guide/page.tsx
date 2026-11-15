@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { requireUser } from "@/lib/auth/session";
 import { PageHeader } from "@/components/layout/page-header";
 import { Notice, Panel, PanelBody, PanelHeader } from "@/components/ui/primitives";
@@ -421,7 +421,7 @@ export default async function GuidePage() {
           <Section
             id="strategies"
             title="Strategies to test"
-            description="Well-known approaches and how to run each one with this app. None is guaranteed: test them with paper money and keep the ones your own results support."
+            description="Well-known approaches and how to run each one with this app. The Strategies page shows what each kind actually earned in backtests; test them with paper money and keep the ones your own results support."
           >
             <div className="grid gap-3 lg:grid-cols-2">
               {STRATEGIES.map((st) => (
@@ -483,6 +483,16 @@ export default async function GuidePage() {
                   "Autopilot",
                   "/autopilot",
                   "A plan for the paper portfolio: buy, watch or avoid for new coins and hold, add, trim or sell for positions, with timing, entry zone, target, stop and a risk-based size. Also shows portfolio risk (loss if every stop is hit, concentration, BTC correlation). Every position and buy idea carries an exit plan (the 20-day average and a safety stop). One click sets price alerts; calls are scored after 7 days. The page picks up a fresh plan every 5 minutes.",
+                ],
+                [
+                  "Market Direction",
+                  "/direction",
+                  "One score (−100 to +100) for which way the market is leaning, from BTC's trend and momentum, how many coins are in uptrends, altcoin strength and Fear & Greed. Shows what the score is made of, its last six months, what followed past readings in each zone, and the 4-hour / daily / weekly trend of the majors and your own coins. Autopilot and the AI chat use the same reading.",
+                ],
+                [
+                  "Strategies",
+                  "/strategies",
+                  "Ten complete strategies replayed on ~2.5 years of history: profit factor, average result per trade, result vs holding BTC, how each did in up, sideways and down markets, the ones that fit today's market, and the coins triggering each entry now.",
                 ],
                 [
                   "Signal Lab",

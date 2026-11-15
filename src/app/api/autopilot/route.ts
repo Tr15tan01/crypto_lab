@@ -1,7 +1,8 @@
 import { after } from "next/server";
 import { withApi } from "@/lib/api/handler";
 import { getSignalBacktest } from "@/services/backtest/backtest-service";
-import { trainNow } from "@/services/learning/learning-service";
+import { trainIfDue } from "@/services/learning/learning-service";
+import { getMarketDirection } from "@/services/market/direction-service";
 import { getAutopilotPlan } from "@/services/autopilot/autopilot-service";
 import { serialize } from "@/types/serialized";
 
@@ -27,6 +28,8 @@ export const GET = withApi(async ({ req, user }) => {
   // Warm the Signal Lab backtest so the next plan can weight signals by their track record.
   if (!plan.signalLabAvailable) after(() => getSignalBacktest().catch(() => null));
   // Likewise the learning model, so the next plan can use what it learned.
-  if (!plan.learning) after(() => trainNow("auto", user.id).catch(() => null));
+  after(() => trainIfDue(user.id).catch(() => null));
+  // Keeps the market-direction reading fresh for the next plan and the chat.
+  after(() => getMarketDirection().catch(() => null));
   return serialize(plan);
 });

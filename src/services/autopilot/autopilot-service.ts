@@ -16,6 +16,7 @@ import type { TradeContext } from "@/components/portfolio/trade-dialog";
 import { assessRegime, decide, portfolioRisk, preScore, returnCorrelation, type EngineInput, type Recommendation } from "./engine";
 import { cachedSignalBacktest } from "@/services/backtest/backtest-service";
 import { calibrateConfidence, latestRun, scoreCandles, selfCalibration } from "@/services/learning/learning-service";
+import { cachedMarketDirection } from "@/services/market/direction-service";
 import { BACKTEST_SIGNALS, signalEdge } from "@/services/backtest/signal-backtest";
 
 /**
@@ -90,7 +91,11 @@ async function buildPlan(userId: string, opts: AutopilotOptions) {
     md.symbolMap().then((r) => r.data).catch(() => null),
     cachedSignalBacktest().catch(() => null),
   ]);
-  const [learned, calibration] = await Promise.all([latestRun().catch(() => null), selfCalibration(userId).catch(() => [])]);
+  const [learned, calibration, direction] = await Promise.all([
+    latestRun().catch(() => null),
+    selfCalibration(userId).catch(() => []),
+    cachedMarketDirection().catch(() => null),
+  ]);
   const signalEdges: NonNullable<EngineInput["signalEdges"]> = {};
   for (const s of BACKTEST_SIGNALS) {
     const e = signalEdge(backtest, s);
@@ -238,6 +243,7 @@ async function buildPlan(userId: string, opts: AutopilotOptions) {
     sizing: { ...sizing, cashAfterBuys: cashLeft },
     risk: portfolioRisk(recs, sizing.portfolioValue, sizing.cash),
     signalLabAvailable: backtest !== null,
+    direction: direction ? { score: direction.score, zoneLabel: direction.zoneLabel, regime: direction.regime, asOf: direction.asOf } : null,
     learning: learned
       ? { trainedAt: learned.createdAt.toISOString(), testAuc: learned.test.metrics.auc, trust: learned.trust, baseRate: learned.test.metrics.baseRate }
       : null,

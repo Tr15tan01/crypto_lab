@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { useEffect, useState } from "react";
 import {
   Bar,
@@ -216,7 +216,7 @@ function Stat({ label, value, sub, tone }: { label: string; value: React.ReactNo
 
 function Picks({ title, rows, tone }: { title: string; rows: PickRow[]; tone: "up" | "down" }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className={cn("mb-1.5 flex items-center gap-1 text-xs font-medium", tone === "up" ? "text-up" : "text-down")}>
         {tone === "up" ? <ArrowUpRight className="size-3.5" /> : <ArrowDownRight className="size-3.5" />} {title}
       </p>
@@ -293,7 +293,7 @@ export function LearningWorkspace() {
         {data.nextRunAt ? (
           <span className="inline-flex items-start gap-1.5 text-muted">
             <CalendarClock className="mt-0.5 size-3.5 shrink-0" />
-            <span>Next scheduled run {formatDateTime(data.nextRunAt)}</span>
+            <span>Next run due {formatDateTime(data.nextRunAt)}</span>
           </span>
         ) : null}
         <span className="text-muted">
@@ -528,7 +528,8 @@ export function LearningWorkspace() {
           <div>
             <p className="mb-1 font-medium text-fg">3. How it is used</p>
             <p>
-              It retrains daily at 06:00 UTC on all data. Autopilot adds it as a factor weighted by its trust, every{" "}
+              It retrains about three times a day (06:00, 14:00 and 22:00 UTC, or when you open a page after 7 hours). What it has learned
+              changes once a day, when a new daily candle closes; the other runs refresh the picks with current prices. Autopilot adds it as a factor weighted by its trust, every{" "}
               <Link href="/market" className="underline">coin page</Link> shows its view, the AI chat sees it, and Autopilot&apos;s stated
               confidence is calibrated against its own scored calls.
             </p>
@@ -549,7 +550,7 @@ export function LearningWorkspace() {
         <Tooltip content="Training runs are global (market-wide); calibration uses your own scored calls.">
           <span className="cursor-help underline decoration-dotted underline-offset-2">About the data</span>
         </Tooltip>{" "}
-        · Retraining is limited to once per 10 minutes; the daily run happens with the scheduled job.
+        · Manual retraining is limited to once per 10 minutes.
       </p>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { useState } from "react";
 import { ArrowDownRight, ArrowUpRight, ChevronDown, Eye, FlaskConical, Gauge, GraduationCap, LineChart, RefreshCw, ShieldAlert, Users } from "lucide-react";
 import { useApi } from "@/hooks/use-api";
@@ -68,6 +68,7 @@ interface Plan {
     warnings: string[];
   };
   signalLabAvailable: boolean;
+  direction: { score: number; zoneLabel: string; regime: "up" | "sideways" | "down"; asOf: number } | null;
   learning: { trainedAt: string; testAuc: number; trust: number; baseRate: number } | null;
   recommendations: Rec[];
   tradeContexts: Record<string, TradeContext>;
@@ -350,6 +351,18 @@ export function AutopilotWorkspace() {
               <PanelHeader title={<span className="flex items-center gap-2">Market regime <Badge tone={REGIME[data.regime.mode].tone}>{REGIME[data.regime.mode].label}</Badge></span>} description={REGIME[data.regime.mode].text} />
               <PanelBody>
                 <ul className="space-y-1 text-xs text-fg/85">{data.regime.notes.map((n) => <li key={n}>• {n}</li>)}</ul>
+                {data.direction ? (
+                  <p className="mt-2 border-t border-border pt-2 text-xs">
+                    <Link href="/direction" className="hover:text-accent">
+                      Market direction:{" "}
+                      <span className={cn("font-medium", data.direction.regime === "up" ? "text-up" : data.direction.regime === "down" ? "text-down" : "text-fg")}>
+                        {data.direction.zoneLabel} ({data.direction.score > 0 ? "+" : ""}{data.direction.score})
+                      </span>{" "}
+                      →
+                    </Link>{" "}
+                    <Link href="/strategies" className="text-muted hover:text-accent">strategies that fit →</Link>
+                  </p>
+                ) : null}
               </PanelBody>
             </Panel>
             <Panel>

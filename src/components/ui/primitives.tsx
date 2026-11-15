@@ -66,7 +66,8 @@ export function Spinner({ className }: { className?: string }) {
 /* ───────────────────────── Panel ───────────────────────── */
 
 export function Panel({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <section className={cn("rounded-lg border border-border bg-surface", className)} {...props} />;
+  // min-w-0: inside a grid, let the panel shrink to the screen; wide content scrolls inside it instead.
+  return <section className={cn("min-w-0 rounded-lg border border-border bg-surface", className)} {...props} />;
 }
 
 export function PanelHeader({

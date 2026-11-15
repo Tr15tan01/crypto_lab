@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { Bell, FlaskConical } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useApi } from "@/hooks/use-api";

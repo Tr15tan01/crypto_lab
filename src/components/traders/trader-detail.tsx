@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip as ChartTooltip, XAxis, YAxis } from "recharts";
@@ -583,7 +583,7 @@ export function TraderDetail({ id }: { id: string }) {
             <ul className="divide-y divide-border">
               {data.capital.slice(0, 12).map((c) => (
                 <li key={c.symbol} className="flex items-center gap-3 px-4 py-2 text-xs">
-                  <Link href={`/crypto/${spotSymbol(c.symbol)}`} className="w-24 shrink-0 truncate font-mono font-medium hover:text-accent">
+                  <Link href={`/crypto/${spotSymbol(c.symbol)}`} className="w-16 shrink-0 truncate font-mono font-medium hover:text-accent sm:w-24">
                     {c.symbol.replace(/USDT$/, "")}
                   </Link>
                   <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-3" aria-hidden>
@@ -591,7 +591,7 @@ export function TraderDetail({ id }: { id: string }) {
                   </div>
                   <span className="num w-10 shrink-0 text-right">{c.sharePercent.toFixed(0)}%</span>
                   <span className="num w-16 shrink-0 text-right text-muted">{formatUsd(c.notional, { compact: true })}</span>
-                  <span className="w-20 shrink-0 text-right text-[0.6875rem] text-faint">
+                  <span className="hidden w-20 shrink-0 text-right text-[0.6875rem] text-faint sm:inline">
                     {c.positions} pos{c.avgLeverage ? ` · ${c.avgLeverage.toFixed(0)}×` : ""}
                   </span>
                   <WatchlistDialog

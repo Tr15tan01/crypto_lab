@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { EmptyState } from "@/components/ui/primitives";
 import { cn, formatDateTime, formatPrice, formatQuantity, formatUsd } from "@/lib/utils/format";
 import { ExecutionDialog, type ExecutionTx } from "./execution-dialog";

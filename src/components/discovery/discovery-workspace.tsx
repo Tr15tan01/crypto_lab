@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { useMemo, useState } from "react";
 import { RefreshCw, Sparkles, Star, Telescope, TriangleAlert } from "lucide-react";
 import { useApi } from "@/hooks/use-api";

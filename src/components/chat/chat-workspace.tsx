@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/components/ui/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, FileText, Gauge, MessageSquarePlus, Pencil, RotateCcw, Send, Square, Trash2, X } from "lucide-react";
@@ -304,7 +304,7 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
   return (
     <div className="grid min-h-[calc(100vh-170px)] gap-4 lg:grid-cols-[260px_1fr]">
       {/* Conversations */}
-      <aside className="flex max-h-[calc(100vh-170px)] flex-col rounded-lg border border-border bg-surface">
+      <aside className="flex max-h-[calc(100vh-170px)] min-w-0 flex-col rounded-lg border border-border bg-surface">
         <div className="flex items-center justify-between border-b border-border p-2">
           <Button size="sm" variant="primary" className="w-full justify-center" onClick={() => select(null)}>
             <MessageSquarePlus className="size-3.5" /> New conversation
@@ -373,7 +373,7 @@ export function ChatWorkspace({ aiConfigured, aiProblem }: { aiConfigured: boole
       </aside>
 
       {/* Thread */}
-      <section className="flex max-h-[calc(100vh-170px)] min-h-[520px] flex-col rounded-lg border border-border bg-surface">
+      <section className="flex max-h-[calc(100vh-170px)] min-h-[520px] min-w-0 flex-col rounded-lg border border-border bg-surface">
         <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
           <p className="text-xs text-muted">
             {focus ? (
