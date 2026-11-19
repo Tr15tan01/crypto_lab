@@ -330,8 +330,7 @@ function StartValueDialog({ traderId, current, onSaved }: { traderId: string; cu
 
 export function TraderDetail({ id }: { id: string }) {
   const router = useRouter();
-  // Open positions are re-priced with live mark prices every minute.
-  const { data, error, loading, refresh } = useApi<Detail>(`/api/traders/${id}`, { refreshInterval: 60_000 });
+  const { data, error, loading, refresh } = useApi<Detail>(`/api/traders/${id}`);
   const [syncing, setSyncing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);

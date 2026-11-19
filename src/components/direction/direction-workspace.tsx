@@ -87,7 +87,7 @@ const ADVICE: Record<Payload["direction"]["regime"], string> = {
 };
 
 export function DirectionWorkspace() {
-  const { data, error, loading } = useApi<Payload>("/api/direction", { refreshInterval: 5 * 60_000 });
+  const { data, error, loading } = useApi<Payload>("/api/direction");
 
   if (loading) {
     return (

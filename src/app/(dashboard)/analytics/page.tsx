@@ -8,7 +8,6 @@ import { evaluateDueResearch } from "@/services/research/research-service";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState, Notice, Panel, PanelBody, PanelHeader } from "@/components/ui/primitives";
 import { WhatWorks } from "@/components/analytics/what-works";
-import { AutoRefresh } from "@/components/layout/auto-refresh";
 import { ChangeText, Stat } from "@/components/market/indicators";
 import { BenchmarkChart, MonthlyChart } from "@/components/charts/portfolio-charts";
 import { formatDate, formatPercent, formatUsd } from "@/lib/utils/format";
@@ -44,8 +43,6 @@ export default async function AnalyticsPage() {
       <PageHeader
         title="Analytics"
         description={`An objective look at your simulated decisions since ${formatDate(a.portfolio.createdAt)}. Definitions are listed at the bottom of the page.`}
-        // Analytics recomputes a lot (histories, benchmarks), so it refreshes less often than prices.
-        actions={<AutoRefresh seconds={300} />}
       />
       {a.portfolio.pricesStale ? <Notice tone="warn" className="mb-4">Live prices are unavailable; current values use the last known prices.</Notice> : null}
 

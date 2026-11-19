@@ -482,7 +482,7 @@ export default async function GuidePage() {
                 [
                   "Autopilot",
                   "/autopilot",
-                  "A plan for the paper portfolio: buy, watch or avoid for new coins and hold, add, trim or sell for positions, with timing, entry zone, target, stop and a risk-based size. Also shows portfolio risk (loss if every stop is hit, concentration, BTC correlation). Every position and buy idea carries an exit plan (the 20-day average and a safety stop). One click sets price alerts; calls are scored after 7 days. The page picks up a fresh plan every 5 minutes.",
+                  "A plan for the paper portfolio: buy, watch or avoid for new coins and hold, add, trim or sell for positions, with timing, entry zone, target, stop and a risk-based size. Also shows portfolio risk (loss if every stop is hit, concentration, BTC correlation). Every position and buy idea carries an exit plan (the 20-day average and a safety stop). One click sets price alerts; calls are scored after 7 days.",
                 ],
                 [
                   "Market Direction",

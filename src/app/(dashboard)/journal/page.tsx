@@ -6,7 +6,6 @@ import { listJournal } from "@/services/journal/journal-service";
 import { serialize } from "@/types/serialized";
 import type { DecisionType } from "@/models";
 import { PageHeader } from "@/components/layout/page-header";
-import { AutoRefresh } from "@/components/layout/auto-refresh";
 import { EmptyState, Panel, PanelHeader } from "@/components/ui/primitives";
 import { Freshness } from "@/components/market/indicators";
 import { JournalEntryCard, type JournalRowData } from "@/components/journal/journal-entry";
@@ -41,12 +40,7 @@ export default async function JournalPage({ searchParams }: PageProps<"/journal"
       <PageHeader
         title="Decision Journal"
         description="Your reasoning at the moment of each decision, and how it turned out. Entries are never silently rewritten — edits and reviews are kept as history."
-        actions={
-          <>
-            <AutoRefresh />
-            <NewJournalEntryDialog defaultSymbol={symbol} />
-          </>
-        }
+        actions={<NewJournalEntryDialog defaultSymbol={symbol} />}
       />
       <Panel>
         <PanelHeader

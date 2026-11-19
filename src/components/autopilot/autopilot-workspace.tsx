@@ -293,8 +293,7 @@ export function AutopilotWorkspace() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const url = `/api/autopilot?risk=${risk}&maxPosition=${maxPos}`;
-  // The plan is rebuilt server-side every 5 minutes; pick the new one up without a reload.
-  const { data, error, loading, setData } = useApi<Plan>(url, { refreshInterval: 5 * 60_000 });
+  const { data, error, loading, setData } = useApi<Plan>(url);
 
   const forceRefresh = async () => {
     setRefreshing(true);

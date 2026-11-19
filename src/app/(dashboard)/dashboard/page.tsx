@@ -18,7 +18,6 @@ import { cachedMarketDirection } from "@/services/market/direction-service";
 import { DirectionBar } from "@/components/direction/direction-workspace";
 import { serialize } from "@/types/serialized";
 import { PageHeader } from "@/components/layout/page-header";
-import { AutoRefresh } from "@/components/layout/auto-refresh";
 import { Badge, EmptyState, Notice, Panel, PanelBody, PanelHeader } from "@/components/ui/primitives";
 import { ChangeText, Stat } from "@/components/market/indicators";
 import { MarketOverviewPanel } from "@/components/market/market-overview-panel";
@@ -72,7 +71,6 @@ export default async function DashboardPage() {
       <PageHeader
         title="Dashboard"
         description="Your research desk at a glance. All portfolio figures are simulated with theoretical funds."
-        actions={<AutoRefresh />}
       />
 
       {stateRes.error ? <Notice tone="down" className="mb-4" title="Portfolio unavailable">{stateRes.error}</Notice> : null}
